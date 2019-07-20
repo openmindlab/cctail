@@ -1,0 +1,48 @@
+{
+  "name": "cctail",
+  "version": "2.0.0",
+  "description": "Salesforce Commerce Cloud logs remote tail",
+  "keywords": [
+    "Salesforce Commerce Cloud",
+    "Demandware"
+  ],
+  "main": "log.js",
+  "scripts": {
+    "test": "jest"
+  },
+  "license": "MIT",
+  "author": {
+    "name": "Fabrizio Giustina"
+  },
+  "bin": {
+    "cctail": "cctail.js"
+  },
+  "engines": {
+    "node": ">=10.0.0"
+  },
+  "dependencies": {
+    "chalk": "2.4.2",
+    "moment": "2.24.0",
+    "prompts": "2.1.0",
+    "request-promise-native": "1.0.7",
+    "sfcc-ci": "git+ssh://git@github.com/SalesforceCommerceCloud/sfcc-ci.git",
+    "underscore.string": "3.3.5",
+    "yargs": "13.2.4"
+  },
+  "devDependencies": {
+    "eslint": "6.0.1",
+    "eslint-config-airbnb-base": "13.2.0",
+    "eslint-config-prettier": "6.0.0",
+    "eslint-plugin-import": "2.18.0",
+    "eslint-plugin-jest": "22.9.0",
+    "eslint-plugin-mocha": "5.3.0",
+    "jest": "24.8.0",
+    "prettier-eslint": "9.0.0"
+  },
+  "jest": {
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      ".history/"
+    ]
+  }
+}

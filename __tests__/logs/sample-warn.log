@@ -1,0 +1,8 @@
+first line of log with missing info
+[2019-07-15 10:50:55.088 GMT] WARN PipelineCallServlet|1692371210|Adyen-Notify|PipelineCall|RrCsCHDvb2 custom []  multiline start
+multiline second line
+multiline third line
+[2019-07-15 10:50:55.088 GMT] WARN PipelineCallServlet|1692371210|Adyen-Notify|PipelineCall|RrCsCHDvb2 custom []  .*#GET#TOP <-> Adyen-Notify#POST#TOP
+[2019-07-15 11:16:53.458 GMT] WARN PipelineCallServlet|899141122|Adyen-Notify|PipelineCall|GUfhepk_2C custom []  Adyen-Notify#POST#TOP
+[2019-07-15 11:16:53.459 GMT] WARN PipelineCallServlet|899141122|Adyen-Notify|PipelineCall|GUfhepk_2C custom []  .*#GET#TOP <-> Adyen-Notify#POST#TOP
+last line

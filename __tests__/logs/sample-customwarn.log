@@ -1,0 +1,1 @@
+[2019-07-15 11:17:01.622 GMT] WARN SystemJobThread|609273395|IndexOrderChangeLogEvents|SearchSvcIndexChangeLog-Order com.demandware.component.search3.index.delta.impl.IndexChangeLogMgrImpl system JOB 081647d1b5 2d6c712cdec4515210ed29178c 1705178826222943232 - Unable to process ORDER index change log as change log is not enabled

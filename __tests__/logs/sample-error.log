@@ -1,0 +1,20 @@
+[2019-07-15 05:46:01.650 GMT] ERROR SystemJobThread|196163799|sfcc-download-gdpr-einstein-response-files-for-einstein|DownloadGDPRLogFiles com.demandware.component.transaction.cquotient.feed.s3.S3Store Sites-Site JOB 120bb2571b 7868c495b3b052e054eea9b3b8 1905512992805178368 - AWS S3 access key, secret key, or bucket name is not setup yet
+System Information
+------------------
+RequestID: 7868c495b3b052e054eea9b3b8
+SessionType: JOB
+Truncated SessionID: 120bb2571b
+ServerName: 
+ServerPort: -1
+
+Request Information
+-------------------
+URI: 
+Method: 
+PathInfo: 
+QueryString: 
+Remote User: 
+
+Request Parameters
+------------------
+

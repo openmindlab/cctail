@@ -1,0 +1,12 @@
+{
+  "dev01": {
+    "hostname": "dev01.mysandbox.demandware.net",
+    "client_id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+    "client_secret": "client-secret"
+  },
+  "dev02": {
+    "hostname": "dev02.mysandbox.demandware.net",
+    "client_id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+    "client_secret": "client-secret"
+  }
+}

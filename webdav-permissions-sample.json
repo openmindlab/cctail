@@ -1,0 +1,15 @@
+{
+  "clients": [
+    {
+      "client_id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+      "permissions": [
+        {
+          "path": "/logs",
+          "operations": [
+            "read_write"
+          ]
+        }
+      ]
+    }
+  ]
+}
