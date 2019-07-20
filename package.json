@@ -1,6 +1,6 @@
 {
   "name": "cctail",
-  "version": "2.0.0",
+  "version": "1.0.0",
   "description": "Salesforce Commerce Cloud logs remote tail",
   "keywords": [
     "Salesforce Commerce Cloud",
@@ -9,6 +9,9 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/openmindlab/cctail.git"
+  },
+  "bugs": {
+    "url": "https://github.com/openmindlab/cctail/issues"
   },
   "main": "log.js",
   "scripts": {
