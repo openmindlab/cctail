@@ -16,10 +16,9 @@
 ```bash
 $ npm i -g cctail
 ```
-Warning: since this tool uses the Salesforce Commerce Cloud CLI (sfcc-ci) for authentication, installation requires access to the github repo at https://github.com/SalesforceCommerceCloud/sfcc-ci (open to Salesforce Partners, after linking your account on https://cc-community-authmgr.herokuapp.com).
 
 ## Requirements
-* Node >= 10.
+* Node >= 10
 
 ## Configuration
 
