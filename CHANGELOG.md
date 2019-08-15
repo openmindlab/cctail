@@ -2,7 +2,7 @@
 
 ### v1.1.1 (2019/08/15)
 
-- Brighter, more readable log colors
+- Brighter, more readable log colors.
 
 ### v1.1.0 (2019/08/04)
 
