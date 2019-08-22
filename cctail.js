@@ -15,7 +15,7 @@ const logemitter = require('./lib/logemitter');
 
 const { log } = console;
 
-const initialBytesRead = 2048;
+const initialBytesRead = 20000;
 const pollingSeconds = 3;
 
 let profiles = [];

@@ -1,5 +1,9 @@
 ## Change Log
 
+### v1.1.2 (2019/08/22)
+
+- Better sorting of same-second log entries.
+
 ### v1.1.1 (2019/08/15)
 
 - Brighter, more readable log colors.
