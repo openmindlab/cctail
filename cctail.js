@@ -21,6 +21,7 @@ const pollingSeconds = 3;
 let profiles = [];
 let fileobjs = [];
 let profile = {}
+let debug = false;
 
 let run = async function () {
   log(`cctail - v${packageJson.version} - (c) 2019 openmind`);
@@ -32,6 +33,10 @@ let run = async function () {
   }
 
   const args = yargs.argv
+
+  if (args.d) {
+    debug = true;
+  }
 
   if (Object.keys(profiles).length === 1) {
     profile = profiles[Object.keys(profiles)[0]];
@@ -71,11 +76,15 @@ let run = async function () {
 
   while (match != null) {
     let filedate = moment(match[3]);
+
+    // log(`parsing "${match[3]} in ${match[0]}"`)
+
     if (match[1].substr(-4) === '.log' && filedate.isSame(moment(), 'day')) {
       fileobjs.push({
         log: match[1],
         size: match[2],
         date: moment(match[3]),
+        debug: debug
       });
     }
     match = regexp.exec(data);
@@ -121,7 +130,7 @@ let run = async function () {
 
   logselection.value.forEach(i => {
     logx.push(fileobjs[i]);
-  });;
+  });
 
 
   log('\n');
@@ -137,7 +146,7 @@ let run = async function () {
 
 let showlogs = async function (logx) {
   let parsed = logemitter.sort(await logparser.process(await Promise.all(logx.map((logobj) => logfetcher.fetchLogContent(profile, logobj)))));
-  logemitter.output(parsed);
+  logemitter.output(parsed, false, logx[0].debug);
   setTimeout(showlogs, pollingSeconds * 1000, logx);
 }
 
