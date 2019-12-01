@@ -71,13 +71,13 @@ let run = async function () {
 
   let data = await logfetcher.fetchLogList(profile);
 
-  let regexp = new RegExp(`<a href="/on/demandware.servlet/webdav/Sites/Logs/(.*?)">[\\s\\S]*?<td align="right"><tt>(.*?)</tt></td>[\\s\\S]*?<td align="right"><tt>(.*?)</tt></td>`, 'gim');
+  let regexp = new RegExp(`<a href="/on/demandware.servlet/webdav/Sites/Logs/(.*?)">[\\s\\S\\&\\?]*?<td align="right">(?:<tt>)?(.*?)(?:<\\/tt>)?</td>[\\s\\S\\&\\?]*?<td align="right"><tt>(.*?)</tt></td>`, 'gim');
   let match = regexp.exec(data);
 
   while (match != null) {
-    let filedate = moment(match[3]);
+    // log(`\nparsing "${match[3]} in ${match[0]}"`)
 
-    // log(`parsing "${match[3]} in ${match[0]}"`)
+    let filedate = moment(match[3]);
 
     if (match[1].substr(-4) === '.log' && filedate.isSame(moment(), 'day')) {
       fileobjs.push({
