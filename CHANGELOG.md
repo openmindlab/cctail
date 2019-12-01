@@ -1,8 +1,8 @@
 ## Change Log
 
-### v1.1.3 (2019/11/16)
+### v1.1.3 (2019/11/29)
 
-- Handling of PIG instances behind cloudflare, even if we are not getting content-length headers here
+- Handling of PIG instances behind cloudflare, even if we are not getting content-length headers here.
 
 ### v1.1.2 (2019/08/22)
 
