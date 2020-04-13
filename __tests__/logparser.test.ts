@@ -1,9 +1,8 @@
-/* eslint-disable no-undef */
-const fs = require('fs')
-const util = require('util');
-const path = require('path');
-const logparser = require('../lib/logparser')
-const logemitter = require('../lib/logemitter');
+import fs from 'fs';
+import util from 'util';
+import path from 'path';
+import logparser from '../src/lib/logparser';
+import logemitter from '../src/lib/logemitter';
 
 const readFile = util.promisify(fs.readFile);
 

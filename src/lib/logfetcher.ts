@@ -1,7 +1,7 @@
 import chalk from 'chalk';
-import request from 'request-promise-native';
 import path from 'path';
 import fs from 'fs';
+import Axios, { AxiosRequestConfig, AxiosInstance } from 'axios';
 import { LogFile, DwJson } from './types';
 const { timeout, TimeoutError } = require('promise-timeout');
 
@@ -10,6 +10,7 @@ const timeoutms = 3000;
 
 const { log } = console;
 
+const axios = Axios.create();
 
 const logfetcher = {
 
@@ -23,19 +24,19 @@ const logfetcher = {
       log(chalk.yellow(`\nAuthenticating using oauth - client_id ${profile.client_id}\n`));
 
       try {
-        const response = await request.post({
+        const response = await axios.request({
           url: 'https://account.demandware.com/dw/oauth2/access_token?grant_type=client_credentials',
           method: 'POST',
           headers: {
             'content-type': 'application/x-www-form-urlencoded'
           },
           auth: {
-            user: profile.client_id,
-            pass: profile.client_secret
+            username: profile.client_id,
+            password: profile.client_secret
           }
         });
 
-        profile.token = JSON.parse(response).access_token;
+        profile.token = JSON.parse(response.data).access_token;
         return profile.token;
       } catch (err) {
         log(chalk.red(`Error authenticating using client id ${profile.client_id} - please check your credentials: ${err}.\n`));
@@ -59,12 +60,12 @@ const logfetcher = {
 
   fetchLogListExecute: async function (profile: DwJson) {
     try {
-      let res = await request.get({
+      let res = await axios.request({
         method: 'GET',
-        uri: `https://${profile.hostname}/on/demandware.servlet/webdav/Sites/Logs`,
-        headers: { 'User-Agent': ua },
-        auth: {
-          bearer: profile.token
+        url: `https://${profile.hostname}/on/demandware.servlet/webdav/Sites/Logs`,
+        headers: {
+          'User-Agent': ua,
+          Authorization: `Bearer ${profile.token}`
         }
       });
       return res;
@@ -92,25 +93,25 @@ const logfetcher = {
       log(chalk.cyan(`Fetching size for ${logobj.log}`));
     }
 
-    let opts = {
+    let opts: AxiosRequestConfig = {
+      method: 'HEAD',
       headers: {
-        'User-Agent': ua
+        'User-Agent': ua,
+        Authorization: `Bearer ${profile.token}`
       },
-      auth: {
-        bearer: profile.token
-      },
-      uri: `https://${profile.hostname}/on/demandware.servlet/webdav/Sites/Logs/${logobj.log}`,
+      url: `https://${profile.hostname}/on/demandware.servlet/webdav/Sites/Logs/${logobj.log}`,
     };
-    let res = await request.head(opts);
+    let res = await axios.request(opts);
     let size = 0;
-    if (res['content-length']) {
-      size = parseInt(res['content-length'], 10);
+    if (res.headers['content-length']) {
+      size = parseInt(res.headers['content-length'], 10);
     } else {
       if (logobj.debug) {
         log(chalk.cyan(`No content-length, fetching whole file`));
       }
-      res = await request.get(opts);
-      size = res.length;
+      opts.method = 'GET';
+      res = await axios.request(opts);
+      size = res.data.length;
     }
     if (logobj.debug) {
       log(chalk.cyan(`Fetched size for ${logobj.log}: size ${size}`));
@@ -143,23 +144,22 @@ const logfetcher = {
       log(`*** ${logobj.log}`);
     }
     try {
-      let res = await request.get({
+      let res = await axios.request({
         method: 'GET',
-        headers: { 'User-Agent': ua, 'Range': `bytes=${logobj.size}-` },
-        auth: {
-          bearer: profile.token
+        headers: {
+          'User-Agent': ua,
+          'Range': `bytes=${logobj.size}-`,
+          Authorization: `Bearer ${profile.token}`
         },
-        uri: `https://${profile.hostname}/on/demandware.servlet/webdav/Sites/Logs/${logobj.log}`,
-        resolveWithFullResponse: true,
-        timeout: 5000, // 5 sec
-        simple: false
+        url: `https://${profile.hostname}/on/demandware.servlet/webdav/Sites/Logs/${logobj.log}`,
+        timeout: 5000 // 5 sec
       });
 
-      if (res.statusCode === 206) {
-        logobj.size += res.body.length;
-        return res.body;
+      if (res.status === 206) {
+        logobj.size += res.data.length;
+        return res.data;
       }
-      if (res.statusCode === 401) {
+      if (res.status === 401) {
         return '401';
       }
     } catch (err) {
