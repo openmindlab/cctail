@@ -2,6 +2,7 @@ import chalk from 'chalk';
 import request from 'request-promise-native';
 import path from 'path';
 import fs from 'fs';
+import { LogFile, DwJson } from './types';
 const { timeout, TimeoutError } = require('promise-timeout');
 
 const ua = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/78.0.3904.97 Safari/537.36";
@@ -12,10 +13,8 @@ const { log } = console;
 
 const logfetcher = {
 
-  /**
-   * @param {{client_id: string, client_secret: string, hostname: string, token: string}} profile
-   */
-  authorize: async function (profile) {
+
+  authorize: async function (profile: DwJson) {
     if (profile.token) {
       return profile.token;
     }
@@ -53,18 +52,12 @@ const logfetcher = {
     return null;
   },
 
-  /**
-   * @param {{client_id: string, client_secret: string, hostname: string, token: string}} profile
-   */
-  fetchLogList: async function (profile) {
+  fetchLogList: async function (profile: DwJson) {
     await this.authorize(profile);
     return this.fetchLogListExecute(profile)
   },
 
-  /**
-   * @param {{client_id: string, client_secret: string, hostname: string, token: string}} profile
-   */
-  fetchLogListExecute: async function (profile) {
+  fetchLogListExecute: async function (profile: DwJson) {
     try {
       let res = await request.get({
         method: 'GET',
@@ -88,13 +81,13 @@ const logfetcher = {
     }
   },
 
-  fetchFileSize: async function (profile, logobj) {
+  fetchFileSize: async function (profile: DwJson, logobj: LogFile) {
     await this.authorize(profile);
     return this.fetchFileSizeExecute(profile, logobj);
   },
 
 
-  fetchFileSizeExecute: async function (profile, logobj) {
+  fetchFileSizeExecute: async function (profile: DwJson, logobj: LogFile) {
     if (logobj.debug) {
       log(chalk.cyan(`Fetching size for ${logobj.log}`));
     }
@@ -125,16 +118,17 @@ const logfetcher = {
     return size;
   },
 
-  fetchLogContent: async function (profile, logobj) {
+  fetchLogContent: async function (profile: DwJson, logobj: LogFile) {
     await this.authorize(profile);
 
-    let res = timeout(this.fetchLogContentExecute(profile, logobj), timeoutms).catch(err2 => {
-      if (err2 instanceof TimeoutError) {
-        if (logobj.debug) {
-          console.log(chalk.cyan('** timeout **')); // will retry again
+    let res = timeout(this.fetchLogContentExecute(profile, logobj), timeoutms)
+      .catch((err2: Error) => {
+        if (err2 instanceof TimeoutError) {
+          if (logobj.debug) {
+            console.log(chalk.cyan('** timeout **')); // will retry again
+          }
         }
-      }
-    });
+      });
     if (res === '401') {
       log(chalk.magenta('*** refreshing token ***'));
       await this.authorize(profile);
@@ -144,7 +138,7 @@ const logfetcher = {
     return res;
   },
 
-  fetchLogContentExecute: async function (profile, logobj) {
+  fetchLogContentExecute: async function (profile: DwJson, logobj: LogFile) {
     if (logobj.debug) {
       log(`*** ${logobj.log}`);
     }

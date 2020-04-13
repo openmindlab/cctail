@@ -1,34 +1,39 @@
 #!/usr/bin/env node
 
 import path from 'path';
-import prompts from 'prompts';
+import prompts, { Choice } from 'prompts';
 import chalk from 'chalk';
 import fs from 'fs';
 import moment from 'moment';
 import yargs from 'yargs';
 import s from 'underscore.string';
 
-import packageJson from './package.json';
 import logfetcher from './lib/logfetcher';
 import logparser from './lib/logparser';
 import logemitter from './lib/logemitter';
+import { LogConfig, LogFile, DwJson } from './lib/types';
+
+
 
 const { log } = console;
 
 const initialBytesRead = 20000;
 const pollingSeconds = 3;
 
-let profiles = [];
-let fileobjs = [];
-let profile = {}
+let profiles: LogConfig;
+let fileobjs: LogFile[] = [];
+let profile: DwJson;
 let debug = false;
 
 let run = async function () {
+
+  let packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'UTF-8'));
+
   log(`cctail - v${packageJson.version} - (c) openmind`);
 
   readLogConf();
 
-  if (profiles.length === 0) {
+  if (Object.keys(profiles).length === 0) {
     readDwJson();
   }
 
@@ -82,7 +87,7 @@ let run = async function () {
     if (match[1].substr(-4) === '.log' && filedate.isSame(moment(), 'day')) {
       fileobjs.push({
         log: match[1],
-        size: match[2],
+        sizestring: match[2],
         date: moment(match[3]),
         debug: debug
       });
@@ -92,11 +97,11 @@ let run = async function () {
 
   fileobjs.sort((a, b) => b.date.unix() - a.date.unix());
 
-  let logx = [];
-  let logchoiche = [];
+  let logx: LogFile[] = [];
+  let logchoiche: Choice[] = [];
 
   for (let i in fileobjs) {
-    let sizeformatted = s.lpad(fileobjs[i].size, 12);
+    let sizeformatted = s.lpad(fileobjs[i].sizestring, 12);
     if (sizeformatted.trim() !== '0.0 kb') {
       sizeformatted = chalk.yellow(sizeformatted);
     }
@@ -120,7 +125,7 @@ let run = async function () {
     message: `Select logs on [${chalk.green(profile.hostname)}]`,
     choices: logchoiche,
     // eslint-disable-next-line no-return-assign
-    onState: ((statedata) => { statedata.value.forEach(i => i.title = `\n${i.title}`) })
+    onState: ((statedata) => { statedata.value.forEach((i: Choice) => i.title = `\n${i.title}`) })
   });
 
   if (!logselection.value || logselection.value.length === 0) {
@@ -128,7 +133,7 @@ let run = async function () {
     process.exit(-1);
   }
 
-  logselection.value.forEach(i => {
+  logselection.value.forEach((i: number) => {
     logx.push(fileobjs[i]);
   });
 
@@ -144,7 +149,7 @@ let run = async function () {
   setImmediate(showlogs, logx)
 };
 
-let showlogs = async function (logx) {
+let showlogs = async function (logx: LogFile[]) {
   let parsed = logemitter.sort(await logparser.process(await Promise.all(logx.map((logobj) => logfetcher.fetchLogContent(profile, logobj)))));
   logemitter.output(parsed, false, logx[0].debug);
   setTimeout(showlogs, pollingSeconds * 1000, logx);
@@ -164,7 +169,7 @@ function readDwJson() {
   }
 }
 
-function colorize(logname, text) {
+function colorize(logname: string, text: string) {
   if (s.contains(logname, 'error') || s.contains(logname, 'fatal')) {
     return chalk.red(text);
   }

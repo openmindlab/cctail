@@ -1,6 +1,7 @@
 import chalk from 'chalk';
 import s from 'underscore.string';
 import moment from 'moment';
+import { LogLine } from './types';
 
 const colormap = {
   WARN: chalk.yellowBright,
@@ -12,19 +13,11 @@ const colormap = {
 
 const logemitter = {
 
-  /**
- * @param {Array.<{timestamp: Object, level: String, message: String}>} logs
- * @return {Array.<{timestamp: Object, level: String, message: String}>}
- */
-  sort: function (logs) {
+  sort: function (logs: LogLine[]): LogLine[] {
     return logs.sort((a, b) => (a.timestamp || moment('1900-01-01')).valueOf() - (b.timestamp || moment('1900-01-01')).valueOf());
   },
 
-  /**
-   * @param {Array.<{timestamp: Object, level: String, message: String}>} logs
-   * @param {boolean} printnots
-   */
-  output: function (logs, printnots, debug) {
+  output: function (logs: LogLine[], printnots: boolean, debug: boolean) {
     if (logs.length === 0 && debug) {
       console.log('.');
     }

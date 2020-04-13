@@ -1,22 +1,15 @@
 import moment from 'moment';
+import { LogLine } from './types';
 
 const logparser = {
-  /**
-   * @param {Array.<Promise>} files
-   * @returns {Array.<{timestamp: String, level: String, message: String}>}
-   */
-  process: async function (files) {
+  process: async function (files: Promise<string>[]): Promise<LogLine[]> {
     return Promise.all(files).then((values) => {
       return values.map((data) => this.parseLog(data)).reduce((a, b) => a.concat(b));
     });
   },
 
-  /**
-   * @param {String} data
-   * @returns {Array.<{timestamp: Object, level: String, message: String}>}
-   */
-  parseLog: function (data) {
-    let linesobj = [];
+  parseLog: function (data: string): LogLine[] {
+    let linesobj: LogLine[] = [];
     let regexp = new RegExp((/\[([.0-9 .:-]* GMT)\] (DEBUG|INFO|WARN|ERROR|FATAL)? ?(.*)/g));
     regexp.lastIndex = 0;
     let lastmatchend = 0;
@@ -27,7 +20,9 @@ const logparser = {
       let end = start + mmatch[0].length;
       if (start > 0 && linesobj.length === 0) {
         linesobj.push({
-          message: data.substring(0, start - 1)
+          message: data.substring(0, start - 1),
+          timestamp: undefined,
+          level: undefined
         });
       }
       else if (start > (lastmatchend + 1)) {
@@ -39,14 +34,22 @@ const logparser = {
       let level = mmatch[2] || 'INFO';
       let message = mmatch[3];
       lastmatchend = end;
-      linesobj.push({ timestamp, level, message });
+      linesobj.push(
+        {
+          timestamp,
+          level,
+          message
+        }
+      );
     }
     if (linesobj.length > 0 && lastmatchend < data.length) {
       linesobj[linesobj.length - 1].message += `${data.substring(lastmatchend, data.length)}`;
     }
     if (lastmatchend === 0 && data && data.length > 0) { // no match
       linesobj.push({
-        message: data
+        message: data,
+        timestamp: undefined,
+        level: undefined
       });
     }
     return linesobj;
