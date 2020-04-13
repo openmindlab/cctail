@@ -1,17 +1,17 @@
 #!/usr/bin/env node
 
-const path = require('path');
-const prompts = require('prompts');
-const chalk = require('chalk');
-const fs = require('fs');
-const moment = require('moment');
-const yargs = require('yargs');
-const s = require('underscore.string');
+import path from 'path';
+import prompts from 'prompts';
+import chalk from 'chalk';
+import fs from 'fs';
+import moment from 'moment';
+import yargs from 'yargs';
+import s from 'underscore.string';
 
-const packageJson = require('./package.json');
-const logfetcher = require('./lib/logfetcher');
-const logparser = require('./lib/logparser');
-const logemitter = require('./lib/logemitter');
+import packageJson from './package.json';
+import logfetcher from './lib/logfetcher';
+import logparser from './lib/logparser';
+import logemitter from './lib/logemitter';
 
 const { log } = console;
 
@@ -24,7 +24,7 @@ let profile = {}
 let debug = false;
 
 let run = async function () {
-  log(`cctail - v${packageJson.version} - (c) 2019 openmind`);
+  log(`cctail - v${packageJson.version} - (c) openmind`);
 
   readLogConf();
 
