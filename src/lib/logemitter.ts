@@ -3,21 +3,20 @@ import s from 'underscore.string';
 import moment from 'moment';
 import { LogLine } from './types';
 
-const colormap = {
-  WARN: chalk.yellowBright,
-  ERROR: chalk.redBright,
-  FATAL: chalk.redBright,
-  INFO: chalk.greenBright,
-  DEBUG: chalk.cyan
-}
-
 const logemitter = {
+  colormap: {
+    WARN: chalk.yellowBright,
+    ERROR: chalk.redBright,
+    FATAL: chalk.redBright,
+    INFO: chalk.greenBright,
+    DEBUG: chalk.cyan
+  },
 
   sort: function (logs: LogLine[]): LogLine[] {
     return logs.sort((a, b) => (a.timestamp || moment('1900-01-01')).valueOf() - (b.timestamp || moment('1900-01-01')).valueOf());
   },
 
-  output: function (logs: LogLine[], printnots: boolean, debug: boolean) {
+  output: function (logs: LogLine[], printnots: boolean, debug: boolean): void {
     if (logs.length === 0 && debug) {
       console.log('.');
     }

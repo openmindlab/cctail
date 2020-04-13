@@ -11,11 +11,14 @@ const timeoutms = 3000;
 const { log } = console;
 
 const axios = Axios.create();
+axios.defaults.validateStatus = function () {
+  return true;
+};
 
 const logfetcher = {
 
 
-  authorize: async function (profile: DwJson) {
+  authorize: async function (profile: DwJson): Promise<string> {
     if (profile.token) {
       return profile.token;
     }
@@ -36,7 +39,7 @@ const logfetcher = {
           }
         });
 
-        profile.token = JSON.parse(response.data).access_token;
+        profile.token = response.data.access_token;
         return profile.token;
       } catch (err) {
         log(chalk.red(`Error authenticating using client id ${profile.client_id} - please check your credentials: ${err}.\n`));
@@ -53,12 +56,12 @@ const logfetcher = {
     return null;
   },
 
-  fetchLogList: async function (profile: DwJson) {
+  fetchLogList: async function (profile: DwJson): Promise<string> {
     await this.authorize(profile);
     return this.fetchLogListExecute(profile)
   },
 
-  fetchLogListExecute: async function (profile: DwJson) {
+  fetchLogListExecute: async function (profile: DwJson): Promise<string> {
     try {
       let res = await axios.request({
         method: 'GET',
@@ -68,7 +71,7 @@ const logfetcher = {
           Authorization: `Bearer ${profile.token}`
         }
       });
-      return res;
+      return res.data;
     } catch (err) {
       if (err.statusCode === 401) {
         log(chalk.yellow('\nAuthentication successful but access to logs folder has been denied. Please add required webdav permissions in BM -> Administration -> Organization -> WebDAV Client Permissions.'));
@@ -82,13 +85,13 @@ const logfetcher = {
     }
   },
 
-  fetchFileSize: async function (profile: DwJson, logobj: LogFile) {
+  fetchFileSize: async function (profile: DwJson, logobj: LogFile): Promise<number> {
     await this.authorize(profile);
     return this.fetchFileSizeExecute(profile, logobj);
   },
 
 
-  fetchFileSizeExecute: async function (profile: DwJson, logobj: LogFile) {
+  fetchFileSizeExecute: async function (profile: DwJson, logobj: LogFile): Promise<number> {
     if (logobj.debug) {
       log(chalk.cyan(`Fetching size for ${logobj.log}`));
     }
@@ -119,7 +122,7 @@ const logfetcher = {
     return size;
   },
 
-  fetchLogContent: async function (profile: DwJson, logobj: LogFile) {
+  fetchLogContent: async function (profile: DwJson, logobj: LogFile): Promise<string> {
     await this.authorize(profile);
 
     let res = timeout(this.fetchLogContentExecute(profile, logobj), timeoutms)
@@ -139,21 +142,24 @@ const logfetcher = {
     return res;
   },
 
-  fetchLogContentExecute: async function (profile: DwJson, logobj: LogFile) {
+  fetchLogContentExecute: async function (profile: DwJson, logobj: LogFile): Promise<string> {
     if (logobj.debug) {
       log(`*** ${logobj.log}`);
     }
+
+    let request: AxiosRequestConfig = {
+      method: 'GET',
+      headers: {
+        'User-Agent': ua,
+        'Range': `bytes=${logobj.size}-`,
+        Authorization: `Bearer ${profile.token}`
+      },
+      url: `https://${profile.hostname}/on/demandware.servlet/webdav/Sites/Logs/${logobj.log}`,
+      timeout: 5000 // 5 sec
+    };
+
     try {
-      let res = await axios.request({
-        method: 'GET',
-        headers: {
-          'User-Agent': ua,
-          'Range': `bytes=${logobj.size}-`,
-          Authorization: `Bearer ${profile.token}`
-        },
-        url: `https://${profile.hostname}/on/demandware.servlet/webdav/Sites/Logs/${logobj.log}`,
-        timeout: 5000 // 5 sec
-      });
+      let res = await axios.request(request);
 
       if (res.status === 206) {
         logobj.size += res.data.length;
@@ -162,10 +168,18 @@ const logfetcher = {
       if (res.status === 401) {
         return '401';
       }
+      if (res.status === 416) {
+        // no data after range
+        return '';
+      }
+      if (logobj.debug) {
+        log(`*** ${logobj.log} status code ${res.status}`);
+      }
     } catch (err) {
       console.log(chalk.red(`Error fetching ${logobj.log}: ${err.message}`));
     }
     return '';
   }
 }
+
 export default logfetcher;

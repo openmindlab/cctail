@@ -27,7 +27,7 @@ let debug = false;
 
 let run = async function () {
 
-  let packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, 'package.json'), 'UTF-8'));
+  let packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, '../package.json'), 'UTF-8'));
 
   log(`cctail - v${packageJson.version} - (c) openmind`);
 
@@ -150,7 +150,10 @@ let run = async function () {
 };
 
 let showlogs = async function (logx: LogFile[]) {
-  let parsed = logemitter.sort(await logparser.process(await Promise.all(logx.map((logobj) => logfetcher.fetchLogContent(profile, logobj)))));
+
+  let parsed = logemitter.sort(
+    await logparser.process(logx.map((logobj) => logfetcher.fetchLogContent(profile, logobj)))
+  );
   logemitter.output(parsed, false, logx[0].debug);
   setTimeout(showlogs, pollingSeconds * 1000, logx);
 }
