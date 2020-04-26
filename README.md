@@ -1,15 +1,22 @@
 # Salesforce Commerce Cloud log tail
 
->  Remote tail Salesforce Commerce Cloud logs via webdav. Allow to monitor more logs at once, merging the content of all the files in a single stream.
+> Remote tail Salesforce Commerce Cloud logs via webdav. Allow to monitor more logs at once, merging the content of all the files in a single stream.
+
+<div>
+	<br>
+	<a href="https://openmindonline.it" target="_blank"><img width="200" src="openmind.svg" alt="openmind"></a>
+	<br>
+	<br>
+</div>
 
 ## Features
 
-* Authentication using API client, no Business Manager username/password required
-* Interactive prompt for logs selection
-* Support configuration of multiple instances or standard dw.json config file
-* Multiple log tailing, with merging/reordering of log entries
-* Color output based on log levels
-* Converts log timestamp to local timezone
+- Authentication using API client, no Business Manager username/password required
+- Interactive prompt for logs selection
+- Support configuration of multiple instances or standard dw.json config file
+- Multiple log tailing, with merging/reordering of log entries
+- Color output based on log levels
+- Converts log timestamp to local timezone
 
 ## Installation
 
@@ -18,16 +25,17 @@ $ npm i -g cctail
 ```
 
 ## Requirements
-* Node >= 10
+
+- Node >= 10
 
 ## Configuration
 
 Requires one of the following configuration files:
 
-* a `log.conf.json` file with multiple environments configured. This may be used if you want to easily switch between multiple instances
-* a standard `dw.json` file, tipically pointing to your working sandbox.
+- a `log.conf.json` file with multiple environments configured. This may be used if you want to easily switch between multiple instances
+- a standard `dw.json` file, tipically pointing to your working sandbox.
 
-`cctail` requires a correctly configured API client id/secret for accessing logs via webdav. *Business manager username/password authentication is not supported*.
+`cctail` requires a correctly configured API client id/secret for accessing logs via webdav. _Business manager username/password authentication is not supported_.
 
 Sample dw.json:
 
@@ -55,6 +63,7 @@ Sample log.conf.json:
   }
 }
 ```
+
 If multiple instances are configured you may directly pass the name of the instance for skipping the interactive selection prompt, e.g.:
 
 ```bash
@@ -75,9 +84,7 @@ For doing so access Business Manager and add the following in Administration -> 
       "permissions": [
         {
           "path": "/logs",
-          "operations": [
-            "read_write"
-          ]
+          "operations": ["read_write"]
         }
       ]
     }
@@ -90,6 +97,7 @@ For doing so access Business Manager and add the following in Administration -> 
 ```bash
 $ cctail
 ```
+
 Run `cctail` in a folder containing either a log.conf-json or dw.json config file.
 The tool will display the list of available logs in order to let you interactively select the ones you want to monitor.
 
