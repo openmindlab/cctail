@@ -6,8 +6,8 @@ import logemitter from '../src/lib/logemitter';
 
 const readFile = util.promisify(fs.readFile);
 
-let jobcontent;
-let files;
+let jobcontent:string;
+let files: Promise<string>[];
 
 beforeAll(() => {
   jobcontent = fs.readFileSync('__tests__/logs/sample-jobs.log', 'UTF-8');
