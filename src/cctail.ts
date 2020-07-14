@@ -33,7 +33,7 @@ let run = async function () {
 
   readLogConf();
 
-  if (Object.keys(profiles).length === 0) {
+  if (!profiles || Object.keys(profiles).length === 0) {
     readDwJson();
   }
 
