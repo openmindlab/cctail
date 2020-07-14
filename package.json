@@ -1,6 +1,6 @@
 {
   "name": "cctail",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Salesforce Commerce Cloud logs remote tail",
   "keywords": [
     "Salesforce Commerce Cloud",
