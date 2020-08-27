@@ -1,6 +1,6 @@
 ## Change Log
 
-### v1.3.1 (2020/08/27)
+### v1.3.2 (2020/08/27)
 
 - Update dependencies
 - Fix parsing of numeric arguments (when using something like 001 as an environment name)
