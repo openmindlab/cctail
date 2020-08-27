@@ -27,7 +27,7 @@ let debug = false;
 
 let run = async function () {
 
-  let packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, '../package.json'), 'UTF-8'));
+  let packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, '../package.json'), 'utf8'));
 
   log(`cctail - v${packageJson.version} - (c) openmind`);
 
@@ -36,6 +36,10 @@ let run = async function () {
   if (!profiles || Object.keys(profiles).length === 0) {
     readDwJson();
   }
+
+  yargs.parserConfiguration({
+    "parse-numbers": false
+  });
 
   const args = yargs.argv
 
@@ -48,6 +52,7 @@ let run = async function () {
   }
   else {
     let profilename = args._[0];
+
     if (profilename === undefined) {
       const profileselection = await prompts({
         type: 'select',
@@ -55,7 +60,7 @@ let run = async function () {
         message: 'Select a profile:',
         choices: Object.keys(profiles).map(i => ({
           title: `  [${i}] ${profiles[i].hostname}`,
-          value: i
+          value: `${i}`
         }))
       });
       profilename = profileselection.value;
@@ -66,7 +71,7 @@ let run = async function () {
       process.exit(-1);
     }
 
-    if (!profiles[profilename]) {
+    if (!profiles[`${profilename}`]) {
       log(chalk.red(`ERROR: Specified profile ${profilename} not found.\n`))
       process.exit(0);
     }
@@ -162,7 +167,7 @@ function readDwJson() {
   let dwJsonPath = path.join(process.cwd(), 'dw.json');
   log(`Loading profile from ${dwJsonPath}\n`);
   try {
-    const dwJson = JSON.parse(fs.readFileSync(dwJsonPath, 'UTF-8'));
+    const dwJson = JSON.parse(fs.readFileSync(dwJsonPath, 'utf8'));
     const name = dwJson.profile || dwJson.hostname.split('-')[0].split('-')[0];
     profiles[name] = dwJson;
   }
@@ -191,7 +196,7 @@ function colorize(logname: string, text: string) {
 
 function readLogConf() {
   try {
-    profiles = JSON.parse(fs.readFileSync(`${process.cwd()}/log.conf.json`, 'UTF-8'));
+    profiles = JSON.parse(fs.readFileSync(`${process.cwd()}/log.conf.json`, 'utf8'));
   }
   catch (err) {
     // ignore

@@ -1,8 +1,8 @@
+import Axios, { AxiosRequestConfig } from 'axios';
 import chalk from 'chalk';
-import path from 'path';
 import fs from 'fs';
-import Axios, { AxiosRequestConfig, AxiosInstance } from 'axios';
-import { LogFile, DwJson } from './types';
+import path from 'path';
+import { DwJson, LogFile } from './types';
 const { timeout, TimeoutError } = require('promise-timeout');
 
 const ua = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/78.0.3904.97 Safari/537.36";
@@ -17,6 +17,7 @@ axios.defaults.validateStatus = function () {
 
 const logfetcher = {
 
+  errorcount: 0,
 
   authorize: async function (profile: DwJson): Promise<string> {
     if (profile.token) {
@@ -49,7 +50,7 @@ const logfetcher = {
     else {
       log(chalk.yellow('\nMissing authentication credentials. Please add client_id/client_secret to dw.json and add required webdav credentials in BM -> Administration -> Organization -> WebDAV Client Permissions.'));
       log(chalk.yellow(`Sample permissions:\n`));
-      log(chalk.yellow(fs.readFileSync(path.join(__dirname, '../webdav-permissions-sample.json'), 'UTF-8')));
+      log(chalk.yellow(fs.readFileSync(path.join(__dirname, '../webdav-permissions-sample.json'), 'utf8')));
       log('\n');
       process.exit(0);
     }
@@ -76,7 +77,7 @@ const logfetcher = {
       if (err.statusCode === 401) {
         log(chalk.yellow('\nAuthentication successful but access to logs folder has been denied. Please add required webdav permissions in BM -> Administration -> Organization -> WebDAV Client Permissions.'));
         log(chalk.yellow(`Sample permissions:\n`));
-        log(chalk.yellow(fs.readFileSync(path.join(__dirname, '../webdav-permissions-sample.json'), 'UTF-8')));
+        log(chalk.yellow(fs.readFileSync(path.join(__dirname, '../webdav-permissions-sample.json'), 'utf8')));
         log('\n');
         process.exit(0);
       }
@@ -176,7 +177,17 @@ const logfetcher = {
         log(`*** ${logobj.log} status code ${res.status}`);
       }
     } catch (err) {
-      console.log(chalk.red(`Error fetching ${logobj.log}: ${err.message}`));
+      // read ECONNRESET
+      // timeout of 5000ms exceeded
+      // connect ETIMEDOUT x.x.x.x:443
+      // getaddrinfo ENOTFOUND xxxx
+      this.errorcount = this.errorcount + 1;
+      console.log(chalk.red(`Error fetching ${logobj.log}: ${err.message} (error count ${this.errorcount})`));
+      if (this.errorcount > 5) {
+        this.errorcount = 0;
+        profile.token = null;
+        this.authorize(profile);
+      }
     }
     return '';
   }

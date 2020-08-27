@@ -1,5 +1,14 @@
 ## Change Log
 
+### v1.3.1 (2020/08/27)
+
+- Update dependencies
+- Fix parsing of numeric arguments (when using something like 001 as an environment name)
+
+### v1.3.0 (2020/07/27)
+
+- Improved retry in case of expired auth.
+
 ### v1.2.0 (2020/04/26)
 
 - Update dependencies, migrated to typescript.
