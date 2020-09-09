@@ -94,7 +94,6 @@ const logfetcher = {
     } else {
       return;
     }
-
     let opts: AxiosRequestConfig = {
       url: 'https://account.demandware.com/dw/oauth2/access_token?grant_type=client_credentials',
       method: 'POST',
