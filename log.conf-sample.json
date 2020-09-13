@@ -1,12 +1,19 @@
 {
-  "dev01": {
-    "hostname": "dev01.mysandbox.demandware.net",
-    "client_id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-    "client_secret": "client-secret"
+  "profiles": {
+    "dev01": {
+      "hostname": "dev01.mysandbox.demandware.net",
+      "client_id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
+      "client_secret": "client-secret",
+    },
+    "dev02": {
+      "hostname": "dev02.mysandbox.demandware.net",
+      "client_id": "user@user.com",
+      "client_secret": "your_password",
+      "auth_type": "bm"
+    }
   },
-  "dev02": {
-    "hostname": "dev02.mysandbox.demandware.net",
-    "client_id": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx",
-    "client_secret": "client-secret"
+  "interactive": true,
+  "fluent": {
+    "enabled": false
   }
 }

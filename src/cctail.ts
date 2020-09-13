@@ -11,29 +11,29 @@ import s from 'underscore.string';
 import logfetcher from './lib/logfetcher';
 import logparser from './lib/logparser';
 import logemitter from './lib/logemitter';
-import { LogConfig, LogFile, DwJson } from './lib/types';
-
-
+import LogFluent from './lib/logfluent';
+import { LogConfig, LogFile, DwJson, Profiles, FluentConfig } from './lib/types';
 
 const { log } = console;
-
 const initialBytesRead = 20000;
-const pollingSeconds = 3;
 
-let profiles: LogConfig;
+let fluentConfig: FluentConfig;
+let logConfig: LogConfig;
+let profiles: Profiles;
 let fileobjs: LogFile[] = [];
 let profile: DwJson;
 let debug = false;
+let interactive = true;
+let pollingSeconds = 3;
 
 let run = async function () {
-
   let packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, '../package.json'), 'utf8'));
-
   log(`cctail - v${packageJson.version} - (c) openmind`);
 
   readLogConf();
 
   if (!profiles || Object.keys(profiles).length === 0) {
+    log(chalk.yellow(`No profiles in log.conf.json, checking for dw.json in path ${process.cwd()}\n`));
     readDwJson();
   }
 
@@ -47,12 +47,16 @@ let run = async function () {
     debug = true;
   }
 
+  if (interactive) {
+    interact(args._[0]);
+  }
+}
+
+let interact = async function(profilename: string) {
   if (Object.keys(profiles).length === 1) {
     profile = profiles[Object.keys(profiles)[0]];
   }
   else {
-    let profilename = args._[0];
-
     if (profilename === undefined) {
       const profileselection = await prompts({
         type: 'select',
@@ -72,11 +76,17 @@ let run = async function () {
     }
 
     if (!profiles[`${profilename}`]) {
-      log(chalk.red(`ERROR: Specified profile ${profilename} not found.\n`))
+      log(chalk.red(`ERROR: Specified profile ${profilename} not found.\n`));
       process.exit(0);
     }
 
     profile = profiles[profilename];
+  }
+
+  if (profile.pollingInterval) {
+    pollingSeconds = profile.pollingInterval;
+  } else {
+    profile.pollingInterval = pollingSeconds;
   }
 
   let data = await logfetcher.fetchLogList(profile);
@@ -154,12 +164,23 @@ let run = async function () {
   setImmediate(showlogs, logx)
 };
 
-let showlogs = async function (logx: LogFile[]) {
+let showlogs = async function(logx: LogFile[]) {
+  if (logx.length === 0) {
+    log('No logs to show, exiting.\n');
+    process.exit(-1);
+  }
 
-  let parsed = logemitter.sort(
-    await logparser.process(logx.map((logobj) => logfetcher.fetchLogContent(profile, logobj)))
-  );
-  logemitter.output(parsed, false, logx[0].debug);
+  if (fluentConfig) {
+    let logfluent = new LogFluent(fluentConfig);
+    logfluent.output(profile.hostname,
+      await logparser.process(logx.map((logobj) => logfetcher.fetchLogContent(profile, logobj))),
+      false, logx[0].debug);
+  } else {
+    let parsed = logemitter.sort(
+      await logparser.process(logx.map((logobj) => logfetcher.fetchLogContent(profile, logobj)))
+    );
+    logemitter.output(parsed, false, logx[0].debug);
+  }
   setTimeout(showlogs, pollingSeconds * 1000, logx);
 }
 
@@ -172,7 +193,7 @@ function readDwJson() {
     profiles[name] = dwJson;
   }
   catch (err) {
-    log(chalk.red(`No log.conf.json or dw.json found in path ${process.cwd()}\n`));
+    log(chalk.red(`No dw.json found in path ${process.cwd()}\n`));
     process.exit(-1);
   }
 }
@@ -196,9 +217,19 @@ function colorize(logname: string, text: string) {
 
 function readLogConf() {
   try {
-    profiles = JSON.parse(fs.readFileSync(`${process.cwd()}/log.conf.json`, 'utf8'));
+    logConfig = JSON.parse(fs.readFileSync(`${process.cwd()}/log.conf.json`, 'utf8'));
+    profiles = logConfig.profiles;
+    if (logConfig.interactive !== undefined && logConfig.interactive === false) {
+      interactive = false;
+      log("Interactive mode is disabled.");
+    }
+    if (logConfig.fluent !== undefined && logConfig.fluent.enabled === true) {
+      fluentConfig = logConfig.fluent;
+      log("FluentD output is enabled.");
+    }
   }
   catch (err) {
+    log("ERROR " + err);
     // ignore
   }
 }
