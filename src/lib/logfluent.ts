@@ -6,23 +6,23 @@ class LogFluent implements FluentConfig {
   enabled: boolean;
   host: string;
   port: number;
-  reconnectInterval: number;
+  reconnect_interval: number;
   timeout: number;
-  tagPrefix: string;
+  tag_prefix: string;
 
   constructor(fConfig: FluentConfig) {
     this.enabled = fConfig.enabled;
     this.host = fConfig.host || 'localhost';
     this.port = fConfig.port || 24224;
-    this.reconnectInterval = fConfig.reconnectInterval || 600000;
+    this.reconnect_interval = fConfig.reconnect_interval || 600000;
     this.timeout = fConfig.timeout || 3.0;
-    this.tagPrefix = fConfig.tagPrefix || 'sfcc';
+    this.tag_prefix = fConfig.tag_prefix || 'sfcc';
 
-    fluent.configure(this.tagPrefix, {
+    fluent.configure(this.tag_prefix, {
       host: this.host,
       port: this.port,
       timeout: this.timeout,
-      reconnectInterval: this.reconnectInterval
+      reconnectInterval: this.reconnect_interval
     });
   }
 
@@ -39,7 +39,7 @@ class LogFluent implements FluentConfig {
       }
 
       try {
-        fluent.emit('logs', {
+        fluent.emit(log.logfile.substr(0, log.logfile.indexOf('-')), {
           logfile: log.logfile,
           level: log.level,
           message: log.message,

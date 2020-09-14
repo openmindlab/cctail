@@ -5,15 +5,40 @@ import path from 'path';
 import { DwJson, LogFile } from './types';
 import moment from 'moment';
 
-const ua = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/78.0.3904.97 Safari/537.36";
-const timeoutMs = 3000;
-
 const { log } = console;
 
+const ua = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/78.0.3904.97 Safari/537.36";
+const timeoutMs = 3000;
+const initialBytesRead = 20000;
+
+// Yup, we're single threaded. Thanks SFCC API!
+const requestsMaxCount = 1;
+const requestIntervalMs = 10;
+let requestsPending = 0;
+
 const axios = Axios.create();
-/* axios.defaults.validateStatus = function () {
-  return true;
-}; */
+
+// Axios Request Interceptor
+axios.interceptors.request.use(function (config) {
+	return new Promise((resolve, reject) => {
+		let interval = setInterval(() => {
+			if (requestsPending < requestsMaxCount) {
+				requestsPending++;
+				clearInterval(interval);
+				resolve(config);
+			}
+		}, requestIntervalMs);
+	})
+})
+
+// Axios Response Interceptor
+axios.interceptors.response.use(function (response) {
+	requestsPending = Math.max(0, requestsPending - 1);
+	return Promise.resolve(response);
+}, function (error) {
+	requestsPending = Math.max(0, requestsPending - 1);
+	return Promise.reject(error);
+})
 
 const logfetcher = {
 
@@ -21,6 +46,11 @@ const logfetcher = {
   errorlimit: 5,
 
   makeRequest: async function(profile: DwJson, methodStr: string, url_suffix: string, headers: Map<string, string>): Promise<AxiosResponse> {
+    if (!profile.client_id || !profile.client_secret) {
+      this.logMissingAuthCredentials();
+      process.exit(1);
+    }
+
     let url = `https://${profile.hostname}/on/demandware.servlet/webdav/Sites/Logs`;
     let method: Method = (methodStr as Method);
     if (url_suffix && url_suffix.length > 0) {
@@ -51,35 +81,33 @@ const logfetcher = {
       opts.headers.Authorization = profile.token;
     }
 
-    return axios.request(opts);
+		// log('Request Opts: ' + JSON.stringify(opts));
+		return axios.request(opts);
   },
 
   authorize: async function(profile: DwJson): Promise<void> {
-    if (profile.client_id && profile.client_secret) {
-      log(chalk.yellow(`\nAuthenticating using oauth - client_id ${profile.client_id}\n`));
-      try {
-        const response = await axios.request({
-          url: 'https://account.demandware.com/dw/oauth2/access_token?grant_type=client_credentials',
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/x-www-form-urlencoded'
-          },
-          auth: {
-            username: profile.client_id,
-            password: profile.client_secret
-          }
-        });
-        profile.token = response.data.token_type.trim() + ' ' + response.data.access_token.trim();
-        profile.token_expiry = moment().add(response.data.expires_in, 's').subtract(profile.pollingInterval, 's');
-      } catch (err) {
-        log(chalk.red(`Error authenticating using client id ${profile.client_id} - please check your credentials: ${err}.\n`));
-        process.exit(1);
-      }
-    } else {
-      log(chalk.red('\nMissing authentication credentials. Please add client_id/client_secret to log.conf.json or dw.json.'));
-      log(chalk.red(`Sample permissions:\n`));
-      log(chalk.red(fs.readFileSync(path.join(__dirname, '../log.config-sample.json'), 'utf8')));
-      log('\n');
+    if (!profile.client_id || !profile.client_secret) {
+      this.logMissingAuthCredentials();
+      process.exit(1);
+    }
+
+    log(chalk.yellow(`\nAuthenticating using oauth - client_id ${profile.client_id}\n`));
+    try {
+      const response = await axios.request({
+        url: 'https://account.demandware.com/dw/oauth2/access_token?grant_type=client_credentials',
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded'
+        },
+        auth: {
+          username: profile.client_id,
+          password: profile.client_secret
+        }
+      });
+      profile.token = response.data.token_type.trim() + ' ' + response.data.access_token.trim();
+      profile.token_expiry = moment().add(response.data.expires_in, 's').subtract(profile.polling_interval, 's');
+    } catch (err) {
+      log(chalk.red(`Error authenticating using client id ${profile.client_id} - please check your credentials: ${err}.\n`));
       process.exit(1);
     }
   },
@@ -109,7 +137,6 @@ const logfetcher = {
         log(chalk.cyan(`Fetching size for ${logobj.log}`));
       }
       let res = await this.makeRequest(profile, 'HEAD', logobj.log, null);
-      let size = 0;
       if (res.headers['content-length']) {
         size = parseInt(res.headers['content-length'], 10);
       } else {
@@ -132,6 +159,15 @@ const logfetcher = {
     if (logobj.debug) {
       log(`*** ${logobj.log}`);
     }
+
+		if(logobj.rolled_over) {
+			logobj.size = 0;
+			logobj.rolled_over = false;
+		} else if(!logobj.size) {
+      let size = await this.fetchFileSize(profile, logobj);
+      logobj.size = Math.max(size - initialBytesRead, 0);
+    }
+
     let headers = new Map([
       ["Range", `bytes=${logobj.size}-`]
     ]);
@@ -160,6 +196,13 @@ const logfetcher = {
       }
     }
     return ['', ''];
+  },
+
+  logMissingAuthCredentials: function() {
+    log(chalk.red('\nMissing authentication credentials. Please add client_id/client_secret to log.conf.json or dw.json.'));
+    log(chalk.red(`Sample config:\n`));
+    log(chalk.red(fs.readFileSync(path.join(__dirname, '../log.config-sample.json'), 'utf8')));
+    log('\n');
   }
 }
 

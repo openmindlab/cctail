@@ -4,7 +4,8 @@ export interface DwJson {
   client_id: string,
   client_secret: string,
   hostname: string,
-  pollingInterval?: number,
+  log_list?: string[]
+  polling_interval?: number,
   auth_type?: string,
   token?: string,
   token_type?: string,
@@ -13,10 +14,11 @@ export interface DwJson {
 
 export interface LogFile {
   log: string,
-  sizestring: string,
+  size_string: string,
   date: moment.Moment,
   size?: number,
-  debug: boolean
+  debug: boolean,
+  rolled_over?: boolean
 }
 
 export interface LogLine {
@@ -29,7 +31,7 @@ export interface LogLine {
 export interface LogConfig {
   profiles: Profiles,
   fluent?: FluentConfig,
-  interactive?: boolean
+  interactive?: boolean,
 }
 
 export interface Profiles {
@@ -40,7 +42,7 @@ export interface FluentConfig {
   enabled: boolean,
   host?: string,
   port?: number,
-  reconnectInterval?: number,
+  reconnect_interval?: number,
   timeout?: number,
-  tagPrefix?: string
+  tag_prefix?: string
 }
