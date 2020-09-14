@@ -4,7 +4,7 @@ export interface DwJson {
   client_id: string,
   client_secret: string,
   hostname: string,
-  log_list?: string[]
+  log_types?: string[]
   polling_interval?: number,
   auth_type?: string,
   token?: string,

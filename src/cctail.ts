@@ -11,10 +11,9 @@ import s from 'underscore.string';
 import logfetcher from './lib/logfetcher';
 import logparser from './lib/logparser';
 import logemitter from './lib/logemitter';
+import logger from './lib/logger'
 import LogFluent from './lib/logfluent';
 import { LogConfig, LogFile, DwJson, Profiles, FluentConfig } from './lib/types';
-
-const { log } = console;
 
 let fluent: LogFluent;
 let logConfig: LogConfig;
@@ -26,12 +25,12 @@ let pollingSeconds = 3;
 
 let run = function () {
   let packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, '../package.json'), 'utf8'));
-  log(`cctail - v${packageJson.version} - (c) openmind`);
+  logger.log(logger.info, `cctail - v${packageJson.version} - (c) openmind`);
 
   readLogConf();
 
   if (!profiles || Object.keys(profiles).length === 0) {
-    log(chalk.yellow(`No profiles in log.conf.json, checking for dw.json in path ${process.cwd()}\n`));
+    logger.log(logger.warn, `No profiles in log.conf.json, checking for dw.json in path ${process.cwd()}\n`);
     readDwJson();
   }
 
@@ -56,10 +55,10 @@ let dontInteract = async function(profilename: string) {
   if (Object.keys(profiles).length === 1) {
     profile = profiles[Object.keys(profiles)[0]];
   } else if (!profilename) {
-    log(chalk.red('ERROR: No profile selected, exiting\n'));
+    logger.log(logger.error, 'ERROR: No profile selected, exiting.');
     process.exit(-1);
   } else if (!profiles[`${profilename}`]) {
-    log(chalk.red(`ERROR: Specified profile ${profilename} not found.\n`));
+    logger.log(logger.error, `ERROR: Specified profile ${profilename} not found.`);
     process.exit(-1);
   } else {
     profile = profiles[profilename];
@@ -90,12 +89,12 @@ let interact = async function(profilename: string) {
     }
 
     if (!profilename) {
-      log('No profile selected, exiting\n');
+      logger.log(logger.error, 'ERROR: No profile selected, exiting.');
       process.exit(-1);
     }
 
     if (!profiles[`${profilename}`]) {
-      log(chalk.red(`ERROR: Specified profile ${profilename} not found.\n`));
+      logger.log(logger.error, `ERROR: Specified profile ${profilename} not found.`);
       process.exit(-1);
     }
 
@@ -121,7 +120,7 @@ let interact = async function(profilename: string) {
     }
     let logname = s.rpad(fileobjs[i].log, 70);
 
-    logname = colorize(logname, logname);
+    logname = logger.colorize(logname, logname);
 
     logchoiche.push({
       title: `${chalk.green(s.lpad(i, 2))} ${logname} ${sizeformatted}  ${dateformatted}`,
@@ -139,7 +138,7 @@ let interact = async function(profilename: string) {
   });
 
   if (!logselection.value || logselection.value.length === 0) {
-    log('No log selected, exiting.\n');
+    logger.log(logger.warn, 'No log selected, exiting.');
     process.exit(-1);
   }
 
@@ -147,7 +146,7 @@ let interact = async function(profilename: string) {
     logx.push(fileobjs[i]);
   });
 
-  log('\n');
+  console.log('\n');
 
   setImmediate(pollLogs, logx);
 };
@@ -155,9 +154,9 @@ let interact = async function(profilename: string) {
 let setPollingInterval = function(profile: DwJson) {
   if (profile.polling_interval) {
     pollingSeconds = profile.polling_interval;
-    log('Setting polling interval (seconds): ' + pollingSeconds);
+    logger.log(logger.info, `Setting polling interval (seconds): ${pollingSeconds}`);
   } else {
-    log('Using default polling interval (seconds): ' + pollingSeconds);
+    logger.log(logger.info, `Using default polling interval (seconds): ${pollingSeconds}`);
     profile.polling_interval = pollingSeconds;
   }
 }
@@ -165,7 +164,7 @@ let setPollingInterval = function(profile: DwJson) {
 let getThatLogList = async function(profile: DwJson): Promise<LogFile[]> {
   let fileobjs: LogFile[] = [];
 
-  let data = await logfetcher.fetchLogList(profile);
+  let data = await logfetcher.fetchLogList(profile, debug);
 
   let regexp = new RegExp(`<a href="/on/demandware.servlet/webdav/Sites/Logs/(.*?)">[\\s\\S\\&\\?]*?<td align="right">(?:<tt>)?(.*?)(?:<\\/tt>)?</td>[\\s\\S\\&\\?]*?<td align="right"><tt>(.*?)</tt></td>`, 'gim');
   let match = regexp.exec(data);
@@ -174,7 +173,7 @@ let getThatLogList = async function(profile: DwJson): Promise<LogFile[]> {
     let logShortName = match[1].substr(0, match[1].indexOf('-'));
     let filedate = moment.utc(match[3]);
     if (match[1].substr(-4) === '.log' && filedate.isSame(moment.utc(), 'day') &&
-      (interactive || !profile.log_list || profile.log_list.indexOf(logShortName) > -1)
+      (interactive || !profile.log_types || profile.log_types.indexOf(logShortName) > -1)
     ) {
       fileobjs.push({
         log: match[1],
@@ -183,7 +182,7 @@ let getThatLogList = async function(profile: DwJson): Promise<LogFile[]> {
         debug: debug
       });
       if(debug || !interactive) {
-        log("Log added to list: " + match[1]);
+        logger.log(logger.debug, `Log added to list: ${match[1]}`, debug);
       }
     }
     match = regexp.exec(data);
@@ -194,22 +193,22 @@ let getThatLogList = async function(profile: DwJson): Promise<LogFile[]> {
 
 let pollLogs = async function(fileobjs: LogFile[]) {
   if (fileobjs.length === 0) {
-    log('No logs to show, exiting.\n');
+    logger.log(logger.warn, 'No logs to show, exiting.');
     process.exit(-1);
   }
 
   // if (debug) {
-  //  log(`Log date: ${fileobjs[0].date.format('ll')}`);
-  //  log(`Today's date: ${moment.utc().format('ll')}`);
+  //  logger.log(logger.debug, `Log date: ${fileobjs[0].date.format('ll')}`, debug);
+  //  logger.log(logger.debug, `Today's date: ${moment.utc().format('ll')}`, debug);
   // }
   if (!interactive && moment.utc().isAfter(fileobjs[0].date, 'day')) {
-    log('Logs have rolled over, re-populating log list.')
+    logger.log(logger.info, 'Logs have rolled over, re-populating log list.')
     fileobjs = await getThatLogList(profile);
     for(let i of fileobjs) {
       i.rolled_over = true;
     }
-  } else if (debug) {
-    log('Logs have not rolled over since last poll cycle.')
+  } else {
+    logger.log(logger.debug, 'Logs have not rolled over since last poll cycle.', debug);
   }
 
   if (fluent) {
@@ -227,32 +226,16 @@ let pollLogs = async function(fileobjs: LogFile[]) {
 
 function readDwJson() {
   let dwJsonPath = path.join(process.cwd(), 'dw.json');
-  log(`Loading profile from ${dwJsonPath}\n`);
+  logger.log(logger.info, `Loading profile from ${dwJsonPath}\n`);
   try {
     const dwJson = JSON.parse(fs.readFileSync(dwJsonPath, 'utf8'));
     const name = dwJson.profile || dwJson.hostname.split('-')[0].split('-')[0];
     profiles[name] = dwJson;
   }
   catch (err) {
-    log(chalk.red(`No dw.json found in path ${process.cwd()}\n`));
+    logger.log(logger.error, `No dw.json found in path ${process.cwd()}\n`);
     process.exit(-1);
   }
-}
-
-function colorize(logname: string, text: string) {
-  if (s.contains(logname, 'error') || s.contains(logname, 'fatal')) {
-    return chalk.red(text);
-  }
-  if (s.contains(logname, 'warn')) {
-    return chalk.yellow(text);
-  }
-  if (s.contains(logname, 'info')) {
-    return chalk.green(text);
-  }
-  if (s.contains(logname, 'jobs')) {
-    return chalk.blue(text);
-  }
-  return text;
 }
 
 function readLogConf() {
@@ -261,19 +244,18 @@ function readLogConf() {
     profiles = logConfig.profiles;
     if (logConfig.interactive !== undefined && logConfig.interactive === false) {
       interactive = false;
-      log("Interactive mode is disabled.");
+      logger.log(logger.info, "Interactive mode is disabled.");
     }
-    if (logConfig.fluent !== undefined && logConfig.fluent.enabled === true) {
+    if (logConfig.fluent && logConfig.fluent.enabled) {
       let fluentConfig: FluentConfig = logConfig.fluent;
       fluent = new LogFluent(fluentConfig);
-      log("FluentD output is enabled.");
+      logger.log(logger.info, "FluentD output is enabled.");
+    } else {
+      logger.log(logger.info, "Console output is enabled.");
     }
   } catch (err) {
-    log(chalk.red('\nMissing or invalid log.conf.json.\n'));
-    log(chalk.red(`Sample config:\n`));
-    log(chalk.red(fs.readFileSync(path.join(__dirname, './log.config-sample.json'), 'utf8')));
-    log('\n');
-    process.exit(1);
+    logger.log(logger.error, '\nMissing or invalid log.conf.json.\n');
+    process.exit(-1);
   }
 }
 

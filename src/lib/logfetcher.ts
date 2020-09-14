@@ -3,6 +3,7 @@ import chalk from 'chalk';
 import fs from 'fs';
 import path from 'path';
 import { DwJson, LogFile } from './types';
+import logger from './logger'
 import moment from 'moment';
 
 const { log } = console;
@@ -45,7 +46,7 @@ const logfetcher = {
   errorcount: 0,
   errorlimit: 5,
 
-  makeRequest: async function(profile: DwJson, methodStr: string, url_suffix: string, headers: Map<string, string>): Promise<AxiosResponse> {
+  makeRequest: async function(profile: DwJson, methodStr: string, url_suffix: string, headers: Map<string, string>, debug?: boolean): Promise<AxiosResponse> {
     if (!profile.client_id || !profile.client_secret) {
       this.logMissingAuthCredentials();
       process.exit(1);
@@ -75,23 +76,22 @@ const logfetcher = {
     if (profile.auth_type === 'bm') {
       opts.headers.Authorization = 'Basic ' + Buffer.from(profile.client_id + ':' + profile.client_secret).toString('base64');
     } else {
-      if (!profile.token_expiry || moment().isSameOrAfter(profile.token_expiry)) {
-        await this.authorize(profile);
+      if (!profile.token_expiry || moment.utc().isSameOrAfter(profile.token_expiry)) {
+        await this.authorize(profile, debug);
       }
       opts.headers.Authorization = profile.token;
     }
 
-		// log('Request Opts: ' + JSON.stringify(opts));
 		return axios.request(opts);
   },
 
-  authorize: async function(profile: DwJson): Promise<void> {
+  authorize: async function(profile: DwJson, debug?: boolean): Promise<void> {
     if (!profile.client_id || !profile.client_secret) {
       this.logMissingAuthCredentials();
       process.exit(1);
     }
 
-    log(chalk.yellow(`\nAuthenticating using oauth - client_id ${profile.client_id}\n`));
+    logger.log(logger.debug, `Authenticating to client API using client id ${profile.client_id}`, debug);
     try {
       const response = await axios.request({
         url: 'https://account.demandware.com/dw/oauth2/access_token?grant_type=client_credentials',
@@ -105,26 +105,27 @@ const logfetcher = {
         }
       });
       profile.token = response.data.token_type.trim() + ' ' + response.data.access_token.trim();
-      profile.token_expiry = moment().add(response.data.expires_in, 's').subtract(profile.polling_interval, 's');
+      profile.token_expiry = moment.utc().add(response.data.expires_in, 's').subtract(profile.polling_interval, 's');
+			logger.log(logger.debug, `Authenticated, token expires at ${profile.token_expiry.toString()}`, debug);
     } catch (err) {
-      log(chalk.red(`Error authenticating using client id ${profile.client_id} - please check your credentials: ${err}.\n`));
+      logger.log(logger.error, `Error authenticating client id ${profile.client_id} - please check your credentials.\n${err}.`);
       process.exit(1);
     }
   },
 
-  fetchLogList: async function(profile: DwJson): Promise<string> {
+  fetchLogList: async function(profile: DwJson, debug?: boolean): Promise<string> {
     try {
-      let res = await this.makeRequest(profile, 'GET', '', null);
+      let res = await this.makeRequest(profile, 'GET', '', null, debug);
       return res.data;
     } catch (err) {
       if (err.status === 401) {
-        log(chalk.yellow('\nAuthentication successful but access to logs folder has been denied.\n'));
-        log(chalk.yellow('Please add required webdav permissions in BM -> Administration -> Organization -> WebDAV Client Permissions.\n'));
-        log(chalk.yellow('Sample permissions:\n'));
-        log(chalk.yellow(fs.readFileSync(path.join(__dirname, '../webdav-permissions-sample.json'), 'utf8')));
+        logger.log(logger.warn, 'Authentication successful but access to logs folder has been denied.');
+        logger.log(logger.warn, 'Please add required webdav permissions in BM -> Administration -> Organization -> WebDAV Client Permissions.');
+        logger.log(logger.warn, 'Sample permissions:');
+        logger.log(logger.warn, fs.readFileSync(path.join(__dirname, '../webdav-permissions-sample.json'), 'utf8'));
         log('\n');
       } else {
-        log(chalk.red('Request failed with error: ' + err.message));
+        logger.log(logger.error, 'Request failed with error: ' + err.message);
       }
       process.exit(1);
     }
@@ -133,34 +134,25 @@ const logfetcher = {
   fetchFileSize: async function(profile: DwJson, logobj: LogFile): Promise<number> {
     let size = 0;
     try {
-      if (logobj.debug) {
-        log(chalk.cyan(`Fetching size for ${logobj.log}`));
-      }
+      logger.log(logger.debug, chalk.cyan(`Fetching size for ${logobj.log}`), logobj.debug);
+
       let res = await this.makeRequest(profile, 'HEAD', logobj.log, null);
       if (res.headers['content-length']) {
         size = parseInt(res.headers['content-length'], 10);
       } else {
-        if (logobj.debug) {
-          log(chalk.cyan(`No content-length, fetching whole file`));
-        }
+        logger.log(logger.debug, `No content-length, fetching whole file: ${logobj.log}`, logobj.debug);
         res = await this.makeRequest(profile, 'GET', logobj.log, null);
         size = res.data.length;
       }
-      if (logobj.debug) {
-        log(chalk.cyan(`Fetched size for ${logobj.log}: size ${size}`));
-      }
+		  logger.log(logger.debug, `Fetched size for ${logobj.log}: size ${size}`, logobj.debug);
     } catch (err) {
-      log(chalk.red(`Fetching file size of ${logobj.log} failed with error: ${err.message}`));
+      logger.log(logger.error, `Fetching file size of ${logobj.log} failed with error: ${err.message}`);
     }
     return size;
   },
 
   fetchLogContent: async function(profile: DwJson, logobj: LogFile): Promise<[string, string]> {
-    if (logobj.debug) {
-      log(`*** ${logobj.log}`);
-    }
-
-		if(logobj.rolled_over) {
+    if(logobj.rolled_over) {
 			logobj.size = 0;
 			logobj.rolled_over = false;
 		} else if(!logobj.size) {
@@ -173,24 +165,23 @@ const logfetcher = {
     ]);
 
     try {
+			logger.log(logger.debug, `Fetching log content from ${logobj.log}`, logobj.debug);
       let res = await this.makeRequest(profile, 'GET', logobj.log, headers);
+      logger.log(logger.debug, `${logobj.log} status code ${res.status}`, logobj.debug);
 
-      if (logobj.debug) {
-        log(`*** ${logobj.log} status code ${res.status}`);
-      }
       if (res.status === 206) {
         logobj.size += res.data.length;
         return [logobj.log, res.data];
       }
     } catch (err) {
-      if (logobj.debug && err.response) {
-        log(`*** ${logobj.log} status code ${err.response.status}`);
+      if (err.response) {
+        logger.log(logger.debug, `${logobj.log} status code ${err.response.status}`, logobj.debug);
       }
       if (!err.response || err.response.status !== 416) {
         this.errorcount = this.errorcount + 1;
-        console.log(chalk.red(`Error fetching ${logobj.log}: ${err.message} (error count ${this.errorcount})`));
+        logger.log(logger.error, `Error fetching ${logobj.log}: ${err.message} (error count ${this.errorcount})`);
         if (profile.auth_type !== 'bm' && this.errorcount > this.errorlimit) {
-          console.log(chalk.red(`Error count exceeded ${this.errorlimit}, resetting OAuth token.`));
+          logger.log(logger.error, `Error count exceeded ${this.errorlimit}, resetting OAuth token.`);
           profile.token = null;
         }
       }
@@ -199,9 +190,9 @@ const logfetcher = {
   },
 
   logMissingAuthCredentials: function() {
-    log(chalk.red('\nMissing authentication credentials. Please add client_id/client_secret to log.conf.json or dw.json.'));
-    log(chalk.red(`Sample config:\n`));
-    log(chalk.red(fs.readFileSync(path.join(__dirname, '../log.config-sample.json'), 'utf8')));
+    logger.log(logger.error, ('\nMissing authentication credentials. Please add client_id/client_secret to log.conf.json or dw.json.'));
+    logger.log(logger.error, (`Sample config:\n`));
+    logger.log(logger.error, (fs.readFileSync(path.join(__dirname, '../log.config-sample.json'), 'utf8')));
     log('\n');
   }
 }
