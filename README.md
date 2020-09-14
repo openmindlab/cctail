@@ -16,7 +16,7 @@
 - Supports configuration of multiple instances OR standard dw.json config file
 - Outputs to console OR FluentD collector
 - Multiple log tailing, with merging of log entries
-- In console mode:
+- In Console mode:
 	- Sorts log entries by timestamp
 	- Colors output based on log levels
 	- Converts log timestamp to local timezone
@@ -38,27 +38,27 @@ Requires one of the following configuration files:
 - a `log.conf.json` file with multiple environments configured. This may be used if you want to easily switch between multiple instances
 - a standard `dw.json` file, tipically pointing to your working sandbox.
 
-`cctail` requires a correctly configured API client id/secret OR Business Manager username/password for accessing logs via webdav. Client API authentication is preferred, because it is faster after the initial authorization.
+`cctail` requires a correctly configured API client id/secret OR Business Manager username/password for accessing logs via webdav. **Client API authentication is preferred, because it is faster after the initial authorization.**
 
 ### Optional Configurations
 
 - `"profiles"`:
-	- `"auth_type": "client_api"`|`"bm"` _(default: client_api)_: if set to `bm`, uses client_id and client_secret as name/password in Business Manager.
+	- `"auth_type": "client_api"`|`"bm"` _(default: `client_api`)_: if set to `bm`, uses client_id and client_secret as name/password in Business Manager.
 	- `"log_types": ["log", "types", "array"]` _(default: all log types)_ - If in non-interactive mode, defining this will limit the log types that cctail collects to this list.
 		- Log Types: `analyticsengine`, `api`, `customerror`, `customwarn`, `error`, `jobs`, `quota`, `sysevent`, `syslog`, `warn`, `wwd`
-	- `"polling_interval": nnn` _(default: 3)_ - Frequency (seconds) with which cctail will poll the logs. You might want this number to be larger if using FluentD (i.e. 30 or 60), since the timestamps are parsed and sent as FluentD timestmaps and thus the data is backfilled at every interval.
-- `"interactive": true|false` _(default: true)_ - Interactive mode asks which logs you will want to tail. If `false`, cctail will tail all of today's logs by default.
+	- `"polling_interval": nnn` _(default: `3`)_ - Frequency (seconds) with which cctail will poll the logs. You might want this number to be larger if using FluentD (i.e. 30 or 60), since the timestamps are parsed and sent as FluentD timestmaps and thus the data is backfilled at every interval.
+- `"interactive": true|false` _(default: `true`)_ - Interactive mode asks which logs you will want to tail. If `false`, cctail will tail all of today's logs by default.
 
 #### FluentD
 **NOTE:** All configurations for fluentD are _optional_, except `enabled` must be set to `true` if you want to use it.
 
 - `fluent`:
-	- `"enabled": true|false` _(default: false)_ - If enabled, logs will be directed to the Fluent collector.
-	- `"host": "fluentd.yourco.com"` _(default: localhost)_ - FluentD collector host
-	- `"port": nnn` _(default: 24224)_ - FluentD collector port
-	-	`"reconnect_interval": nnn` _(default: 600)_ - If the collector can't be reached, cctail will try to reconnect again in `nnn` seconds.
-	- `"timeout": nnn` _(default: 3)_ - Timeout to connect to FluentD collector
-	-	`"tag_prefix": "your_tag_prefix"` _(default: sfcc)_ - All logs sent to FluentD will have this prefix, followed by the log type (i.e. "sfcc.customerror").
+	- `"enabled": true|false` _(default: `false`)_ - If enabled, logs will be directed to the Fluent collector.
+	- `"host": "fluentd.yourco.com"` _(default: `localhost`)_ - FluentD collector host
+	- `"port": nnn` _(default: `24224`)_ - FluentD collector port
+	- `"reconnect_interval": nnn` _(default: `600`)_ - If the collector can't be reached, cctail will try to reconnect again in `nnn` seconds.
+	- `"timeout": nnn` _(default: `3`)_ - Timeout to connect to FluentD collector
+	- `"tag_prefix": "your_tag_prefix"` _(default: `sfcc`)_ - All logs sent to FluentD will have this prefix, followed by the log type (i.e. "sfcc.customerror").
 
 ### Sample configuration files
 
@@ -79,14 +79,14 @@ Sample log.conf.json:
       "hostname": "dev01-mysandbox.demandware.net",
       "client_id": "a12345ae-b678-9b01-2dfe-34e56789e0f1",
       "client_secret": "mysupersecretpassword",
-			"polling_interval": 30
+      "polling_interval": 30
     },
     "dev02": {
       "hostname": "dev02-mysandbox.demandware.net",
       "client_id": "user@yourco.com",
       "client_secret": "mysupersecretpassword",
       "auth_type": "bm",
-			"log_types": [ "customerror", "customwarn", "error", "jobs", "warn" ],
+      "log_types": [ "customerror", "customwarn", "error", "jobs", "warn" ],
       "polling_interval": 60
     }
   },
@@ -97,8 +97,7 @@ Sample log.conf.json:
 }
 ```
 
-If multiple instances are configured you may directly pass the name of the instance for skipping the interactive selection prompt, e.g.:
-
+If multiple instances are configured, you may directly pass the name of the instance for skipping the interactive selection prompt, e.g.:
 ```bash
 $ cctail dev02
 ```
