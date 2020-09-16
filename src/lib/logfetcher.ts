@@ -20,25 +20,25 @@ let requestsPending = 0;
 const axios = Axios.create();
 
 // Axios Request Interceptor
-axios.interceptors.request.use(function (config) {
-	return new Promise((resolve, reject) => {
-		let interval = setInterval(() => {
-			if (requestsPending < requestsMaxCount) {
-				requestsPending++;
-				clearInterval(interval);
-				resolve(config);
-			}
-		}, requestIntervalMs);
-	})
+axios.interceptors.request.use(function(config) {
+  return new Promise((resolve, reject) => {
+    let interval = setInterval(() => {
+      if (requestsPending < requestsMaxCount) {
+        requestsPending++;
+        clearInterval(interval);
+        resolve(config);
+      }
+    }, requestIntervalMs);
+  })
 })
 
 // Axios Response Interceptor
-axios.interceptors.response.use(function (response) {
-	requestsPending = Math.max(0, requestsPending - 1);
-	return Promise.resolve(response);
-}, function (error) {
-	requestsPending = Math.max(0, requestsPending - 1);
-	return Promise.reject(error);
+axios.interceptors.response.use(function(response) {
+  requestsPending = Math.max(0, requestsPending - 1);
+  return Promise.resolve(response);
+}, function(error) {
+  requestsPending = Math.max(0, requestsPending - 1);
+  return Promise.reject(error);
 })
 
 const logfetcher = {
@@ -47,7 +47,7 @@ const logfetcher = {
   errorlimit: 5,
 
   makeRequest: async function(profile: DwJson, methodStr: string, url_suffix: string, headers: Map<string, string>, debug?: boolean): Promise<AxiosResponse> {
-    if (!profile.client_id || !profile.client_secret) {
+    if (!this.isUsingBM(profile) && !this.isUsingAPI(profile)) {
       this.logMissingAuthCredentials();
       process.exit(1);
     }
@@ -60,11 +60,18 @@ const logfetcher = {
 
     let opts: AxiosRequestConfig = {
       method: method,
-      headers: {
-        'User-Agent': ua
-      },
       timeout: timeoutMs,
-      url: url
+      url: url,
+      headers: {}
+    }
+
+    if (this.isUsingBM(profile)) {
+      opts.headers.Authorization = 'Basic ' + Buffer.from(profile.username + ':' + profile.password).toString('base64');
+    } else {
+      if (!profile.token_expiry || moment.utc().isSameOrAfter(profile.token_expiry)) {
+        await this.authorize(profile, debug);
+      }
+      opts.headers.Authorization = profile.token;
     }
 
     if (headers && headers.size > 0) {
@@ -73,20 +80,11 @@ const logfetcher = {
       }
     }
 
-    if (profile.auth_type === 'bm') {
-      opts.headers.Authorization = 'Basic ' + Buffer.from(profile.client_id + ':' + profile.client_secret).toString('base64');
-    } else {
-      if (!profile.token_expiry || moment.utc().isSameOrAfter(profile.token_expiry)) {
-        await this.authorize(profile, debug);
-      }
-      opts.headers.Authorization = profile.token;
-    }
-
-		return axios.request(opts);
+    return axios.request(opts);
   },
 
   authorize: async function(profile: DwJson, debug?: boolean): Promise<void> {
-    if (!profile.client_id || !profile.client_secret) {
+    if (!this.isUsingAPI(profile)) {
       this.logMissingAuthCredentials();
       process.exit(1);
     }
@@ -106,7 +104,7 @@ const logfetcher = {
       });
       profile.token = response.data.token_type.trim() + ' ' + response.data.access_token.trim();
       profile.token_expiry = moment.utc().add(response.data.expires_in, 's').subtract(profile.polling_interval, 's');
-			logger.log(logger.debug, `Authenticated, token expires at ${profile.token_expiry.toString()}`, debug);
+      logger.log(logger.debug, `Authenticated, token expires at ${profile.token_expiry.toString()}`, debug);
     } catch (err) {
       logger.log(logger.error, `Error authenticating client id ${profile.client_id} - please check your credentials.\n${err}.`);
       process.exit(1);
@@ -115,6 +113,9 @@ const logfetcher = {
 
   fetchLogList: async function(profile: DwJson, debug?: boolean): Promise<string> {
     try {
+      let headers = new Map([
+        ["User-Agent", ua]
+      ]);
       let res = await this.makeRequest(profile, 'GET', '', null, debug);
       return res.data;
     } catch (err) {
@@ -144,7 +145,7 @@ const logfetcher = {
         res = await this.makeRequest(profile, 'GET', logobj.log, null);
         size = res.data.length;
       }
-		  logger.log(logger.debug, `Fetched size for ${logobj.log}: size ${size}`, logobj.debug);
+      logger.log(logger.debug, `Fetched size for ${logobj.log}: size ${size}`, logobj.debug);
     } catch (err) {
       logger.log(logger.error, `Fetching file size of ${logobj.log} failed with error: ${err.message}`);
     }
@@ -152,10 +153,10 @@ const logfetcher = {
   },
 
   fetchLogContent: async function(profile: DwJson, logobj: LogFile): Promise<[string, string]> {
-    if(logobj.rolled_over) {
-			logobj.size = 0;
-			logobj.rolled_over = false;
-		} else if(!logobj.size) {
+    if (logobj.rolled_over) {
+      logobj.size = 0;
+      logobj.rolled_over = false;
+    } else if (!logobj.size) {
       let size = await this.fetchFileSize(profile, logobj);
       logobj.size = Math.max(size - initialBytesRead, 0);
     }
@@ -165,9 +166,9 @@ const logfetcher = {
     ]);
 
     try {
-			logger.log(logger.debug, `Fetching log content from ${logobj.log}`, logobj.debug);
+      logger.log(logger.debug, `Fetching log content from ${logobj.log}`, logobj.debug);
       let res = await this.makeRequest(profile, 'GET', logobj.log, headers);
-      logger.log(logger.debug, `${logobj.log} status code ${res.status}`, logobj.debug);
+      logger.log(logger.debug, `${logobj.log} - status code ${res.status}`, logobj.debug);
 
       if (res.status === 206) {
         logobj.size += res.data.length;
@@ -175,13 +176,13 @@ const logfetcher = {
       }
     } catch (err) {
       if (err.response) {
-        logger.log(logger.debug, `${logobj.log} status code ${err.response.status}`, logobj.debug);
+        logger.log(logger.debug, `${logobj.log} - status code ${err.response.status}`, logobj.debug);
       }
       if (!err.response || err.response.status !== 416) {
         this.errorcount = this.errorcount + 1;
         logger.log(logger.error, `Error fetching ${logobj.log}: ${err.message} (error count ${this.errorcount})`);
-        if (profile.auth_type !== 'bm' && this.errorcount > this.errorlimit) {
-          logger.log(logger.error, `Error count exceeded ${this.errorlimit}, resetting OAuth token.`);
+        if (this.isUsingAPI(profile) && this.errorcount > this.errorlimit) {
+          logger.log(logger.error, `Error count exceeded ${this.errorlimit}, resetting Client API token.`);
           profile.token = null;
         }
       }
@@ -190,10 +191,18 @@ const logfetcher = {
   },
 
   logMissingAuthCredentials: function() {
-    logger.log(logger.error, ('\nMissing authentication credentials. Please add client_id/client_secret to log.conf.json or dw.json.'));
+    logger.log(logger.error, ('Missing authentication credentials. Please add client_id/client_secret or username/password to log.conf.json or dw.json.'));
     logger.log(logger.error, (`Sample config:\n`));
     logger.log(logger.error, (fs.readFileSync(path.join(__dirname, '../log.config-sample.json'), 'utf8')));
     log('\n');
+  },
+
+  isUsingAPI: function(profile: DwJson) {
+    return (profile.client_id && profile.client_secret)
+  },
+
+  isUsingBM: function(profile: DwJson) {
+    return (profile.username && profile.password)
   }
 }
 

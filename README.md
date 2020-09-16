@@ -11,7 +11,7 @@
 
 ## Features
 
-- Authentication using API client OR Business Manager username/password
+- Authentication using API Client _(recommended)_ OR Business Manager _(deprecated)_
 - Interactive prompt for logs selection OR selection of logs by config file.
 - Supports configuration of multiple instances OR standard dw.json config file
 - Outputs to console OR FluentD collector
@@ -38,12 +38,11 @@ Requires one of the following configuration files:
 - a `log.conf.json` file with multiple environments configured. This may be used if you want to easily switch between multiple instances
 - a standard `dw.json` file, tipically pointing to your working sandbox.
 
-`cctail` requires a correctly configured API client id/secret OR Business Manager username/password for accessing logs via webdav. **Client API authentication is preferred, because it is faster after the initial authorization.**
+`cctail` requires a correctly configured API client id/secret OR Business Manager username/password for accessing logs via webdav. **API client authentication is recommended, because it is faster after the initial authorization, and Business Manager authentication to WebDAV has been _deprecated_ by SalesForce.**
 
 ### Optional Configurations
 
 - `"profiles"`:
-	- `"auth_type": "client_api"`|`"bm"` _(default: `client_api`)_: if set to `bm`, uses client_id and client_secret as name/password in Business Manager.
 	- `"log_types": ["log", "types", "array"]` _(default: all log types)_ - If in non-interactive mode, defining this will limit the log types that cctail collects to this list.
 		- Log Types: `analyticsengine`, `api`, `customerror`, `customwarn`, `error`, `jobs`, `quota`, `sysevent`, `syslog`, `warn`, `wwd`
 	- `"polling_interval": nnn` _(default: `3`)_ - Frequency (seconds) with which cctail will poll the logs. You might want this number to be larger if using FluentD (i.e. 30 or 60), since the timestamps are parsed and sent as FluentD timestmaps and thus the data is backfilled at every interval.
@@ -75,17 +74,16 @@ Sample log.conf.json:
 ```json
 {
   "profiles": {
-    "dev01": {
+    "dev01-api-client-example": {
       "hostname": "dev01-mysandbox.demandware.net",
       "client_id": "a12345ae-b678-9b01-2dfe-34e56789e0f1",
-      "client_secret": "mysupersecretpassword",
+      "client_secret": "mysupersecretsecret",
       "polling_interval": 30
     },
-    "dev02": {
+    "dev02-bm-example": {
       "hostname": "dev02-mysandbox.demandware.net",
-      "client_id": "user@yourco.com",
-      "client_secret": "mysupersecretpassword",
-      "auth_type": "bm",
+      "username": "user@yourco.com",
+      "password": "mysupersecretpassword",
       "log_types": [ "customerror", "customwarn", "error", "jobs", "warn" ],
       "polling_interval": 60
     }
@@ -104,9 +102,9 @@ $ cctail dev02
 
 ### API client configuration
 
-The API client must be created from the account.demandware.com console. Before being able to use `cctail` you must grant the required permissions for accessing the logs folder through webdav in any target sfcc instance.
+The API client id must be created in the account.demandware.com console. Before being able to use `cctail` you must grant the required permissions to that client id for accessing the logs folder through WebDAV in any target SFCC instance.
 
-For doing so access Business Manager and add the following in Administration -> Organization -> WebDAV Client Permissions. Replace client id with your client id, you may need to merge these settings with existing ones.
+To do so, access Business Manager and add the following to Administration -> Organization -> WebDAV Client Permissions, replacing the client_id value with your client id. **Note:** you may need to merge these settings with existing ones.
 
 ```json
 {

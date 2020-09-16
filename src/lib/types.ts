@@ -1,12 +1,13 @@
 import moment from 'moment';
 
 export interface DwJson {
-  client_id: string,
-  client_secret: string,
   hostname: string,
+  client_id?: string,
+  client_secret?: string,
+  username?: string,
+  password?: string,
   log_types?: string[]
   polling_interval?: number,
-  auth_type?: string,
   token?: string,
   token_type?: string,
   token_expiry?: moment.Moment

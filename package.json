@@ -32,6 +32,7 @@
     "README.md",
     "LICENSE",
     "log.conf-sample.json",
+    "webdav-permissions-sample.json",
     "openmind.svg",
     "CHANGELOG.md"
   ],
