@@ -44,7 +44,7 @@ Requires one of the following configuration files:
 
 - `"profiles"`:
 	- `"log_types": ["log", "types", "array"]` _(default: all log types)_ - If in non-interactive mode, defining this will limit the log types that cctail collects to this list.
-		- Log Types: `analyticsengine`, `api`, `customerror`, `customwarn`, `error`, `jobs`, `quota`, `sysevent`, `syslog`, `warn`, `wwd`
+		- Standard log types: `analytics`, `api`, `console`, `customdebug`, `customerror`, `customfatal`, `custominfo`, `customwarn`, `dbinit-sql`, `debug`, `deprecation`, `error`, `fatal`, `info`, `jobs`, `migration`, `performance`, `quota`, `sql`, `staging`, `sysevent`, `syslog`, `warn` 
 	- `"polling_interval": nnn` _(default: `3`)_ - Frequency (seconds) with which cctail will poll the logs. You might want this number to be larger if using FluentD (i.e. 30 or 60), since the timestamps are parsed and sent as FluentD timestmaps and thus the data is backfilled at every interval.
 - `"interactive": true|false` _(default: `true`)_ - Interactive mode asks which logs you will want to tail. If `false`, cctail will tail all of today's logs by default.
 
