@@ -4,7 +4,11 @@ import { LogLine } from './types';
 const logparser = {
   process: async function (files: Promise<[string, string]>[]): Promise<LogLine[]> {
     return Promise.all(files).then((values) => {
-      return values.map((data) => this.parseLog(data)).reduce((a, b) => a.concat(b));
+      return values.map((data) => this.parseLog(data)).reduce((a, b) => {
+        if (a.length === 0)
+          return b;
+        return a.concat(b);
+      });
     });
   },
 
