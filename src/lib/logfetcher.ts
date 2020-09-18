@@ -19,6 +19,7 @@ let requestsPending = 0;
 
 const axios = Axios.create();
 
+// Thank you @matthewsuan! https://gist.github.com/matthewsuan/2bdc9e7f459d5b073d58d1ebc0613169
 // Axios Request Interceptor
 axios.interceptors.request.use(function(config) {
   return new Promise((resolve, reject) => {
@@ -80,6 +81,7 @@ const logfetcher = {
       }
     }
 
+    // logger.log(logger.debug, `Request: ${JSON.stringify(opts)}`, debug);
     return axios.request(opts);
   },
 
@@ -89,19 +91,22 @@ const logfetcher = {
       process.exit(1);
     }
 
+    let opts: AxiosRequestConfig = {
+      url: 'https://account.demandware.com/dw/oauth2/access_token?grant_type=client_credentials',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      auth: {
+        username: profile.client_id,
+        password: profile.client_secret
+      }
+    }
     logger.log(logger.debug, `Authenticating to client API using client id ${profile.client_id}`, debug);
+    // logger.log(logger.debug, `Request: ${JSON.stringify(opts)}`, debug);
+
     try {
-      const response = await axios.request({
-        url: 'https://account.demandware.com/dw/oauth2/access_token?grant_type=client_credentials',
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded'
-        },
-        auth: {
-          username: profile.client_id,
-          password: profile.client_secret
-        }
-      });
+      const response = await axios.request(opts);
       profile.token = response.data.token_type.trim() + ' ' + response.data.access_token.trim();
       profile.token_expiry = moment.utc().add(response.data.expires_in, 's').subtract(profile.polling_interval, 's');
       logger.log(logger.debug, `Authenticated, token expires at ${profile.token_expiry.toString()}`, debug);
@@ -116,12 +121,19 @@ const logfetcher = {
       let headers = new Map([
         ["User-Agent", ua]
       ]);
-      let res = await this.makeRequest(profile, 'GET', '', null, debug);
+      let res = await this.makeRequest(profile, 'GET', '', headers, debug);
       return res.data;
     } catch (err) {
       if (err.status === 401) {
         logger.log(logger.warn, 'Authentication successful but access to logs folder has been denied.');
         logger.log(logger.warn, 'Please add required webdav permissions in BM -> Administration -> Organization -> WebDAV Client Permissions.');
+        logger.log(logger.warn, 'Sample permissions:');
+        logger.log(logger.warn, fs.readFileSync(path.join(__dirname, '../webdav-permissions-sample.json'), 'utf8'));
+        log('\n');
+      } else if (err.status === 500) {
+        logger.log(logger.warn, 'Authentication successful but attempt to retrieve WebDAV logs failed.');
+        logger.log(logger.warn, 'Please ensure your WebDAV permissions are syntactically correct and have no duplicate entries.');
+        logger.log(logger.warn, 'Check in BM -> Administration -> Organization -> WebDAV Client Permissions.');
         logger.log(logger.warn, 'Sample permissions:');
         logger.log(logger.warn, fs.readFileSync(path.join(__dirname, '../webdav-permissions-sample.json'), 'utf8'));
         log('\n');
@@ -136,16 +148,13 @@ const logfetcher = {
     let size = 0;
     try {
       logger.log(logger.debug, chalk.cyan(`Fetching size for ${logobj.log}`), logobj.debug);
-
-      let res = await this.makeRequest(profile, 'HEAD', logobj.log, null);
+      let res = await this.makeRequest(profile, 'HEAD', logobj.log, null, logobj.debug);
       if (res.headers['content-length']) {
         size = parseInt(res.headers['content-length'], 10);
+        logger.log(logger.debug, `Fetched size for ${logobj.log}: size ${size}`, logobj.debug);
       } else {
-        logger.log(logger.debug, `No content-length, fetching whole file: ${logobj.log}`, logobj.debug);
-        res = await this.makeRequest(profile, 'GET', logobj.log, null);
-        size = res.data.length;
+        logger.log(logger.debug, `No content-length returned for ${logobj.log}`, logobj.debug);
       }
-      logger.log(logger.debug, `Fetched size for ${logobj.log}: size ${size}`, logobj.debug);
     } catch (err) {
       logger.log(logger.error, `Fetching file size of ${logobj.log} failed with error: ${err.message}`);
     }
@@ -153,10 +162,7 @@ const logfetcher = {
   },
 
   fetchLogContent: async function(profile: DwJson, logobj: LogFile): Promise<[string, string]> {
-    if (logobj.rolled_over) {
-      logobj.size = 0;
-      logobj.rolled_over = false;
-    } else if (!logobj.size) {
+    if (!logobj.rolled_over && !logobj.size) {
       let size = await this.fetchFileSize(profile, logobj);
       logobj.size = Math.max(size - initialBytesRead, 0);
     }
@@ -167,10 +173,18 @@ const logfetcher = {
 
     try {
       logger.log(logger.debug, `Fetching log content from ${logobj.log}`, logobj.debug);
-      let res = await this.makeRequest(profile, 'GET', logobj.log, headers);
+      let res = await this.makeRequest(profile, 'GET', logobj.log, headers, logobj.debug);
       logger.log(logger.debug, `${logobj.log} - status code ${res.status}`, logobj.debug);
-
       if (res.status === 206) {
+        if(logobj.rolled_over) {
+          logobj.rolled_over = false;
+          logobj.size = res.data.length;
+          return[logobj.log, res.data];
+        }
+        if (logobj.size === 0 && res.data.length > initialBytesRead) {
+          logobj.size = res.data.length;
+          return[logobj.log, res.data.substring(res.data.length-initialBytesRead)];
+        }
         logobj.size += res.data.length;
         return [logobj.log, res.data];
       }
