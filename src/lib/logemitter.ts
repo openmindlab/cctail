@@ -1,25 +1,19 @@
-import chalk from 'chalk';
 import s from 'underscore.string';
 import moment from 'moment';
 import { LogLine } from './types';
+import logger from './logger';
 
 const logemitter = {
-  colormap: {
-    WARN: chalk.yellowBright,
-    ERROR: chalk.redBright,
-    FATAL: chalk.redBright,
-    INFO: chalk.greenBright,
-    DEBUG: chalk.cyan
-  },
 
   sort: function (logs: LogLine[]): LogLine[] {
     return logs.sort((a, b) => (a.timestamp || moment('1900-01-01')).valueOf() - (b.timestamp || moment('1900-01-01')).valueOf());
   },
 
   output: function (logs: LogLine[], printnots: boolean, debug: boolean): void {
-    if (logs.length === 0 && debug) {
-      console.log('.');
+    if (logs.length === 0) {
+      logger.log(logger.debug, '.', debug);
     }
+
     for (let j = 0; j < logs.length; j++) {
       let log = logs[j];
 
@@ -30,18 +24,14 @@ const logemitter = {
 
       let message = '';
       if (log.timestamp) {
-        message = `${log.timestamp.format('YYYY-MM-DD HH.mm.ss.SSS')} `;
+        message = `${log.timestamp.local().format('YYYY-MM-DD HH.mm.ss.SSS ZZ')} `;
       }
       if (log.level) {
         message += `${s.rpad(log.level, 5)} `;
       }
+
       message += log.message;
-      let color = this.colormap[log.level];
-      if (color) {
-        console.log(color(message));
-      } else {
-        console.log(message);
-      }
+      logger.log(log.level, message);
     }
   }
 }

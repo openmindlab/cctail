@@ -1,5 +1,21 @@
 ## Change Log
 
+### v1.4.0 (2020/09/18)
+
+- Support for FluentD as a log collector
+- Headless mode - tail logs based on config file
+- Added Business Manager as an authentication method
+- Standardized console.log color outputs & debug logging
+
+### v1.3.2 (2020/08/27)
+
+- Update dependencies
+- Fix parsing of numeric arguments (when using something like 001 as an environment name)
+
+### v1.3.0 (2020/07/27)
+
+- Improved retry in case of expired auth.
+
 ### v1.2.0 (2020/04/26)
 
 - Update dependencies, migrated to typescript.

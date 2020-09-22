@@ -1,184 +1,223 @@
+import Axios, { Method, AxiosResponse, AxiosRequestConfig } from 'axios';
 import chalk from 'chalk';
-import path from 'path';
 import fs from 'fs';
-import Axios, { AxiosRequestConfig, AxiosInstance } from 'axios';
-import { LogFile, DwJson } from './types';
-const { timeout, TimeoutError } = require('promise-timeout');
-
-const ua = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/78.0.3904.97 Safari/537.36";
-const timeoutms = 3000;
+import path from 'path';
+import { DwJson, LogFile } from './types';
+import logger from './logger'
+import moment from 'moment';
 
 const { log } = console;
 
+const ua = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/78.0.3904.97 Safari/537.36";
+const timeoutMs = 3000;
+const initialBytesRead = 20000;
+
+// Yup, we're single threaded. Thanks SFCC API!
+const requestsMaxCount = 1;
+const requestIntervalMs = 10;
+let requestsPending = 0;
+
 const axios = Axios.create();
-axios.defaults.validateStatus = function () {
-  return true;
-};
+
+// Thank you @matthewsuan! https://gist.github.com/matthewsuan/2bdc9e7f459d5b073d58d1ebc0613169
+// Axios Request Interceptor
+axios.interceptors.request.use(function(config) {
+  return new Promise((resolve, reject) => {
+    let interval = setInterval(() => {
+      if (requestsPending < requestsMaxCount) {
+        requestsPending++;
+        clearInterval(interval);
+        resolve(config);
+      }
+    }, requestIntervalMs);
+  })
+})
+
+// Axios Response Interceptor
+axios.interceptors.response.use(function(response) {
+  requestsPending = Math.max(0, requestsPending - 1);
+  return Promise.resolve(response);
+}, function(error) {
+  requestsPending = Math.max(0, requestsPending - 1);
+  return Promise.reject(error);
+})
 
 const logfetcher = {
 
+  errorcount: 0,
+  errorlimit: 5,
 
-  authorize: async function (profile: DwJson): Promise<string> {
-    if (profile.token) {
-      return profile.token;
+  makeRequest: async function(profile: DwJson, methodStr: string, url_suffix: string, headers: Map<string, string>, debug?: boolean): Promise<AxiosResponse> {
+    if (!this.isUsingBM(profile) && !this.isUsingAPI(profile)) {
+      this.logMissingAuthCredentials();
+      process.exit(1);
     }
 
-    if (profile.client_id && profile.client_secret) {
-      log(chalk.yellow(`\nAuthenticating using oauth - client_id ${profile.client_id}\n`));
-
-      try {
-        const response = await axios.request({
-          url: 'https://account.demandware.com/dw/oauth2/access_token?grant_type=client_credentials',
-          method: 'POST',
-          headers: {
-            'content-type': 'application/x-www-form-urlencoded'
-          },
-          auth: {
-            username: profile.client_id,
-            password: profile.client_secret
-          }
-        });
-
-        profile.token = response.data.access_token;
-        return profile.token;
-      } catch (err) {
-        log(chalk.red(`Error authenticating using client id ${profile.client_id} - please check your credentials: ${err}.\n`));
-        throw err;
-      }
-    }
-    else {
-      log(chalk.yellow('\nMissing authentication credentials. Please add client_id/client_secret to dw.json and add required webdav credentials in BM -> Administration -> Organization -> WebDAV Client Permissions.'));
-      log(chalk.yellow(`Sample permissions:\n`));
-      log(chalk.yellow(fs.readFileSync(path.join(__dirname, '../webdav-permissions-sample.json'), 'UTF-8')));
-      log('\n');
-      process.exit(0);
-    }
-    return null;
-  },
-
-  fetchLogList: async function (profile: DwJson): Promise<string> {
-    await this.authorize(profile);
-    return this.fetchLogListExecute(profile)
-  },
-
-  fetchLogListExecute: async function (profile: DwJson): Promise<string> {
-    try {
-      let res = await axios.request({
-        method: 'GET',
-        url: `https://${profile.hostname}/on/demandware.servlet/webdav/Sites/Logs`,
-        headers: {
-          'User-Agent': ua,
-          Authorization: `Bearer ${profile.token}`
-        }
-      });
-      return res.data;
-    } catch (err) {
-      if (err.statusCode === 401) {
-        log(chalk.yellow('\nAuthentication successful but access to logs folder has been denied. Please add required webdav permissions in BM -> Administration -> Organization -> WebDAV Client Permissions.'));
-        log(chalk.yellow(`Sample permissions:\n`));
-        log(chalk.yellow(fs.readFileSync(path.join(__dirname, '../webdav-permissions-sample.json'), 'UTF-8')));
-        log('\n');
-        process.exit(0);
-      }
-      log('Request failed with error:', err.message);
-      throw err;
-    }
-  },
-
-  fetchFileSize: async function (profile: DwJson, logobj: LogFile): Promise<number> {
-    await this.authorize(profile);
-    return this.fetchFileSizeExecute(profile, logobj);
-  },
-
-
-  fetchFileSizeExecute: async function (profile: DwJson, logobj: LogFile): Promise<number> {
-    if (logobj.debug) {
-      log(chalk.cyan(`Fetching size for ${logobj.log}`));
+    let url = `https://${profile.hostname}/on/demandware.servlet/webdav/Sites/Logs`;
+    let method: Method = (methodStr as Method);
+    if (url_suffix && url_suffix.length > 0) {
+      url += '/' + url_suffix;
     }
 
     let opts: AxiosRequestConfig = {
-      method: 'HEAD',
-      headers: {
-        'User-Agent': ua,
-        Authorization: `Bearer ${profile.token}`
-      },
-      url: `https://${profile.hostname}/on/demandware.servlet/webdav/Sites/Logs/${logobj.log}`,
-    };
-    let res = await axios.request(opts);
-    let size = 0;
-    if (res.headers['content-length']) {
-      size = parseInt(res.headers['content-length'], 10);
-    } else {
-      if (logobj.debug) {
-        log(chalk.cyan(`No content-length, fetching whole file`));
-      }
-      opts.method = 'GET';
-      res = await axios.request(opts);
-      size = res.data.length;
+      method: method,
+      timeout: timeoutMs,
+      url: url,
+      headers: {}
     }
-    if (logobj.debug) {
-      log(chalk.cyan(`Fetched size for ${logobj.log}: size ${size}`));
+
+    if (this.isUsingBM(profile)) {
+      opts.headers.Authorization = 'Basic ' + Buffer.from(profile.username + ':' + profile.password).toString('base64');
+    } else {
+      if (!profile.token_expiry || moment.utc().isSameOrAfter(profile.token_expiry)) {
+        await this.authorize(profile, debug);
+      }
+      opts.headers.Authorization = profile.token;
+    }
+
+    if (headers && headers.size > 0) {
+      for (let [key, value] of headers) {
+        opts.headers[key] = value;
+      }
+    }
+
+    // logger.log(logger.debug, `Request: ${JSON.stringify(opts)}`, debug);
+    return axios.request(opts);
+  },
+
+  authorize: async function(profile: DwJson, debug?: boolean): Promise<void> {
+    if (!this.isUsingAPI(profile)) {
+      this.logMissingAuthCredentials();
+      process.exit(1);
+    }
+
+    let opts: AxiosRequestConfig = {
+      url: 'https://account.demandware.com/dw/oauth2/access_token?grant_type=client_credentials',
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      auth: {
+        username: profile.client_id,
+        password: profile.client_secret
+      }
+    }
+    // logger.log(logger.debug, `Request: ${JSON.stringify(opts)}`, debug);
+
+    try {
+      logger.log(logger.debug, `Authenticating to client API using client id ${profile.client_id}`, debug);
+      const response = await axios.request(opts);
+      profile.token = response.data.token_type.trim() + ' ' + response.data.access_token.trim();
+      profile.token_expiry = moment.utc().add(response.data.expires_in, 's').subtract(profile.polling_interval, 's');
+      logger.log(logger.debug, `Authenticated, token expires at ${profile.token_expiry.toString()}`, debug);
+    } catch (err) {
+      logger.log(logger.error, `Error authenticating client id ${profile.client_id} - please check your credentials.\n${err}.`);
+      process.exit(1);
+    }
+  },
+
+  fetchLogList: async function(profile: DwJson, debug?: boolean): Promise<string> {
+    try {
+      logger.log(logger.debug, `Fetching log list from ${profile.hostname}`, debug);
+      let headers = new Map([["User-Agent", ua]]);
+      let res = await this.makeRequest(profile, 'GET', '', headers, debug);
+      return res.data;
+    } catch (err) {
+      logger.log(logger.error, 'Fetching log list failed with error: ' + err.message);
+      switch (err.status) {
+        case 401:
+          logger.log(logger.error, 'Authentication successful but access to logs folder has been denied.');
+          logger.log(logger.error, 'Please add required webdav permissions in BM -> Administration -> Organization -> WebDAV Client Permissions.');
+          logger.log(logger.error, 'Sample permissions:');
+          logger.log(logger.error, fs.readFileSync(path.join(__dirname, '../webdav-permissions-sample.json'), 'utf8'));
+          log('\n');
+          logger.log(logger.error, 'Exiting cctail.');
+          process.exit(1);
+        case 500:
+          logger.log(logger.error, 'Authentication successful but attempt to retrieve WebDAV logs failed.');
+          logger.log(logger.error, 'Please ensure your WebDAV permissions are syntactically correct and have no duplicate entries.');
+          logger.log(logger.error, 'Check in BM -> Administration -> Organization -> WebDAV Client Permissions.');
+          logger.log(logger.error, 'Sample permissions:');
+          logger.log(logger.error, fs.readFileSync(path.join(__dirname, '../webdav-permissions-sample.json'), 'utf8'));
+          log('\n');
+          logger.log(logger.error, 'Exiting cctail.');
+          process.exit(1);
+        default:
+          return '';
+      }
+    }
+  },
+
+  fetchFileSize: async function(profile: DwJson, logobj: LogFile): Promise<number> {
+    let size = 0;
+    try {
+      logger.log(logger.debug, chalk.cyan(`Fetching size for ${logobj.log}`), logobj.debug);
+      let res = await this.makeRequest(profile, 'HEAD', logobj.log, null, logobj.debug);
+      if (res.headers['content-length']) {
+        size = parseInt(res.headers['content-length'], 10);
+        logger.log(logger.debug, `Fetched size for ${logobj.log}: size ${size}`, logobj.debug);
+      } else {
+        logger.log(logger.debug, `No content-length returned for ${logobj.log}`, logobj.debug);
+      }
+    } catch (err) {
+      logger.log(logger.error, `Fetching file size of ${logobj.log} failed with error: ${err.message}`);
     }
     return size;
   },
 
-  fetchLogContent: async function (profile: DwJson, logobj: LogFile): Promise<string> {
-    await this.authorize(profile);
-
-    let res = timeout(this.fetchLogContentExecute(profile, logobj), timeoutms)
-      .catch((err2: Error) => {
-        if (err2 instanceof TimeoutError) {
-          if (logobj.debug) {
-            console.log(chalk.cyan('** timeout **')); // will retry again
-          }
-        }
-      });
-    if (res === '401') {
-      log(chalk.magenta('*** refreshing token ***'));
-      await this.authorize(profile);
-      res = timeout(this.fetchLogContentExecute(profile, logobj), timeoutms);
-    }
-
-    return res;
-  },
-
-  fetchLogContentExecute: async function (profile: DwJson, logobj: LogFile): Promise<string> {
-    if (logobj.debug) {
-      log(`*** ${logobj.log}`);
-    }
-
-    let request: AxiosRequestConfig = {
-      method: 'GET',
-      headers: {
-        'User-Agent': ua,
-        'Range': `bytes=${logobj.size}-`,
-        Authorization: `Bearer ${profile.token}`
-      },
-      url: `https://${profile.hostname}/on/demandware.servlet/webdav/Sites/Logs/${logobj.log}`,
-      timeout: 5000 // 5 sec
-    };
-
+  fetchLogContent: async function(profile: DwJson, logobj: LogFile): Promise<[string, string]> {
     try {
-      let res = await axios.request(request);
+      // If logobj.size is negative, leave as-is but range starts at 0. (Log rollover case)
+      let range = 0;
+      if (!logobj.size) {
+        let size = await this.fetchFileSize(profile, logobj);
+        range = logobj.size = Math.max(size - initialBytesRead, 0);
+      }
 
+      let headers = new Map([["Range", `bytes=${range}-`]]);
+      let res = await this.makeRequest(profile, 'GET', logobj.log, headers, logobj.debug);
+      logger.log(logger.debug, `Fetching contents from ${logobj.log} retured status code ${res.status}`, logobj.debug);
       if (res.status === 206) {
+        if(logobj.size < 0) {
+          logobj.size = res.data.length;
+          return[logobj.log, res.data];
+        }
+        if (logobj.size === 0 && res.data.length > initialBytesRead) {
+          logobj.size = res.data.length;
+          return[logobj.log, res.data.substring(res.data.length-initialBytesRead)];
+        }
         logobj.size += res.data.length;
-        return res.data;
-      }
-      if (res.status === 401) {
-        return '401';
-      }
-      if (res.status === 416) {
-        // no data after range
-        return '';
-      }
-      if (logobj.debug) {
-        log(`*** ${logobj.log} status code ${res.status}`);
+        return [logobj.log, res.data];
       }
     } catch (err) {
-      console.log(chalk.red(`Error fetching ${logobj.log}: ${err.message}`));
+      if (err.response) {
+        logger.log(logger.debug, `Fetching contents from ${logobj.log} returned status code ${err.response.status}`, logobj.debug);
+      }
+      if (!err.response || err.response.status !== 416) {
+        this.errorcount = this.errorcount + 1;
+        logger.log(logger.error, `Error fetching contents from ${logobj.log}: ${err.message} (error count ${this.errorcount})`);
+        if (this.isUsingAPI(profile) && this.errorcount > this.errorlimit) {
+          logger.log(logger.error, `Error count exceeded ${this.errorlimit}, resetting Client API token.`);
+          profile.token = null;
+        }
+      }
     }
-    return '';
+    return ['', ''];
+  },
+
+  logMissingAuthCredentials: function() {
+    logger.log(logger.error, ('Missing authentication credentials. Please add client_id/client_secret or username/password to log.conf.json or dw.json.'));
+    logger.log(logger.error, (`Sample config:\n`));
+    logger.log(logger.error, (fs.readFileSync(path.join(__dirname, '../log.config-sample.json'), 'utf8')));
+    log('\n');
+  },
+
+  isUsingAPI: function(profile: DwJson) {
+    return (profile.client_id && profile.client_secret)
+  },
+
+  isUsingBM: function(profile: DwJson) {
+    return (profile.username && profile.password)
   }
 }
 

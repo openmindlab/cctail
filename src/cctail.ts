@@ -11,31 +11,34 @@ import s from 'underscore.string';
 import logfetcher from './lib/logfetcher';
 import logparser from './lib/logparser';
 import logemitter from './lib/logemitter';
-import { LogConfig, LogFile, DwJson } from './lib/types';
+import logger from './lib/logger'
+import LogFluent from './lib/logfluent';
+import { LogConfig, LogFile, DwJson, Profiles, FluentConfig } from './lib/types';
 
-
-
-const { log } = console;
-
-const initialBytesRead = 20000;
-const pollingSeconds = 3;
-
-let profiles: LogConfig;
-let fileobjs: LogFile[] = [];
+let fluent: LogFluent;
+let logConfig: LogConfig;
+let profiles: Profiles;
 let profile: DwJson;
 let debug = false;
+let interactive = true;
+let pollingSeconds = 3;
+let refreshLogListSeconds = 600;
+let nextLogRefresh: moment.Moment;
 
 let run = async function () {
-
-  let packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, '../package.json'), 'UTF-8'));
-
-  log(`cctail - v${packageJson.version} - (c) openmind`);
+  let packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, '../package.json'), 'utf8'));
+  logger.log(logger.info, `cctail - v${packageJson.version} - (c) openmind`);
 
   readLogConf();
 
-  if (Object.keys(profiles).length === 0) {
+  if (!profiles || Object.keys(profiles).length === 0) {
+    logger.log(logger.warn, `No profiles in log.conf.json, checking for dw.json in path ${process.cwd()}\n`);
     readDwJson();
   }
+
+  yargs.parserConfiguration({
+    "parse-numbers": false
+  });
 
   const args = yargs.argv
 
@@ -43,75 +46,111 @@ let run = async function () {
     debug = true;
   }
 
-  if (Object.keys(profiles).length === 1) {
-    profile = profiles[Object.keys(profiles)[0]];
+  let fileobjs: LogFile[] = [];
+  if (interactive) {
+    fileobjs = await interact(args._[0]);
+  } else {
+    fileobjs = await dontInteract(args._[0]);
   }
-  else {
-    let profilename = args._[0];
-    if (profilename === undefined) {
-      const profileselection = await prompts({
-        type: 'select',
-        name: 'value',
-        message: 'Select a profile:',
-        choices: Object.keys(profiles).map(i => ({
-          title: `  [${i}] ${profiles[i].hostname}`,
-          value: i
-        }))
-      });
-      profilename = profileselection.value;
-    }
 
-    if (!profilename) {
-      log('No profile selected, exiting\n');
+  if(fileobjs.length === 0) {
+    logger.log(logger.error, 'ERROR: No logs selected or returned, exiting.');
+    process.exit(-1);
+  }
+
+  setImmediate(pollLogs, fileobjs);
+}
+
+let dontInteract = async function(profilename?: string): Promise<LogFile[]> {
+  if(!profile) {
+    if (Object.keys(profiles).length === 1) {
+      profile = profiles[Object.keys(profiles)[0]];
+    } else if (!profilename) {
+      logger.log(logger.error, 'ERROR: No profile selected, exiting.');
       process.exit(-1);
+    } else if (!profiles[`${profilename}`]) {
+      logger.log(logger.error, `ERROR: Specified profile ${profilename} not found.`);
+      process.exit(-1);
+    } else {
+      profile = profiles[profilename];
     }
 
-    if (!profiles[profilename]) {
-      log(chalk.red(`ERROR: Specified profile ${profilename} not found.\n`))
-      process.exit(0);
+    setPollingInterval(profile);
+    if (profile.refresh_loglist_interval) {
+      refreshLogListSeconds = profile.refresh_loglist_interval;
+      logger.log(logger.info, `Setting log list refresh interval (seconds): ${pollingSeconds}`);
+    } else {
+      logger.log(logger.info, `Using default log list refresh interval (seconds): ${pollingSeconds}`);
+      profile.refresh_loglist_interval = refreshLogListSeconds;
     }
-
-    profile = profiles[profilename];
   }
 
-  let data = await logfetcher.fetchLogList(profile);
-
-  let regexp = new RegExp(`<a href="/on/demandware.servlet/webdav/Sites/Logs/(.*?)">[\\s\\S\\&\\?]*?<td align="right">(?:<tt>)?(.*?)(?:<\\/tt>)?</td>[\\s\\S\\&\\?]*?<td align="right"><tt>(.*?)</tt></td>`, 'gim');
-  let match = regexp.exec(data);
-
-  while (match != null) {
-    // log(`\nparsing "${match[3]} in ${match[0]}"`)
-
-    let filedate = moment(match[3]);
-
-    if (match[1].substr(-4) === '.log' && filedate.isSame(moment(), 'day')) {
-      fileobjs.push({
-        log: match[1],
-        sizestring: match[2],
-        date: moment(match[3]),
-        debug: debug
-      });
+  nextLogRefresh = moment().add(refreshLogListSeconds, 's');
+  let fileobjs = await getThatLogList(profile);
+  if(profile.log_types && profile.log_types.length > 0) {
+    let logx: LogFile[] = [];
+    for (let thisfile of fileobjs) {
+      let logname = thisfile.log.substr(0, thisfile.log.indexOf('-'));
+        if (profile.log_types.indexOf(logname) != -1) {
+          logx.push(thisfile);
+        }
     }
-    match = regexp.exec(data);
+  } else {
+    return fileobjs;
+  }
+}
+
+let interact = async function(profilename?: string): Promise<LogFile[]> {
+  if(!profile) {
+    if (Object.keys(profiles).length === 1) {
+      profile = profiles[Object.keys(profiles)[0]];
+    } else {
+      if (profilename === undefined) {
+        const profileselection = await prompts({
+          type: 'select',
+          name: 'value',
+          message: 'Select a profile:',
+          choices: Object.keys(profiles).map(i => ({
+            title: `  [${i}] ${profiles[i].hostname}`,
+            value: `${i}`
+          }))
+        });
+        profilename = profileselection.value;
+      }
+
+      if (!profilename) {
+        logger.log(logger.error, 'ERROR: No profile selected, exiting.');
+        process.exit(-1);
+      }
+
+      if (!profiles[`${profilename}`]) {
+        logger.log(logger.error, `ERROR: Specified profile ${profilename} not found.`);
+        process.exit(-1);
+      }
+
+      profile = profiles[profilename];
+    }
+    setPollingInterval(profile);
   }
 
+  let fileobjs = await getThatLogList(profile);
   fileobjs.sort((a, b) => b.date.unix() - a.date.unix());
 
   let logx: LogFile[] = [];
   let logchoiche: Choice[] = [];
 
   for (let i in fileobjs) {
-    let sizeformatted = s.lpad(fileobjs[i].sizestring, 12);
+    let sizeformatted = s.lpad(fileobjs[i].size_string, 12);
     if (sizeformatted.trim() !== '0.0 kb') {
       sizeformatted = chalk.yellow(sizeformatted);
     }
     let dateformatted = s.lpad(fileobjs[i].date.format('YYYY-MM-DD HH:mm:ss'), 20);
-    if (fileobjs[i].date.isSame(moment(), 'hour')) {
+    if (fileobjs[i].date.isSame(moment.utc(), 'hour')) {
       dateformatted = chalk.yellow(dateformatted);
     }
     let logname = s.rpad(fileobjs[i].log, 70);
 
-    logname = colorize(logname, logname);
+    logname = logger.colorize(logname, logname);
 
     logchoiche.push({
       title: `${chalk.green(s.lpad(i, 2))} ${logname} ${sizeformatted}  ${dateformatted}`,
@@ -128,73 +167,129 @@ let run = async function () {
     onState: ((statedata) => { statedata.value.forEach((i: Choice) => i.title = `\n${i.title}`) })
   });
 
-  if (!logselection.value || logselection.value.length === 0) {
-    log('No log selected, exiting.\n');
-    process.exit(-1);
-  }
-
   logselection.value.forEach((i: number) => {
     logx.push(fileobjs[i]);
   });
 
+  return logx;
+}
 
-  log('\n');
+let setPollingInterval = function(profile: DwJson) {
+  if (profile.polling_interval) {
+    pollingSeconds = profile.polling_interval;
+    logger.log(logger.info, `Setting polling interval (seconds): ${pollingSeconds}`);
+  } else {
+    logger.log(logger.info, `Using default polling interval (seconds): ${pollingSeconds}`);
+    profile.polling_interval = pollingSeconds;
+  }
+}
 
-  // get sizes
-  await Promise.all(logx.map(async (logobj) => {
-    let size = await logfetcher.fetchFileSize(profile, logobj);
-    logobj.size = Math.max(size - initialBytesRead, 0);
-  }));
+let getThatLogList = async function(profile: DwJson): Promise<LogFile[]> {
+  let fileobjs: LogFile[] = [];
 
-  setImmediate(showlogs, logx)
-};
+  let data = await logfetcher.fetchLogList(profile, debug);
 
-let showlogs = async function (logx: LogFile[]) {
+  let regexp = new RegExp(`<a href="/on/demandware.servlet/webdav/Sites/Logs/(.*?)">[\\s\\S\\&\\?]*?<td align="right">(?:<tt>)?(.*?)(?:<\\/tt>)?</td>[\\s\\S\\&\\?]*?<td align="right"><tt>(.*?)</tt></td>`, 'gim');
+  let match = regexp.exec(data);
 
-  let parsed = logemitter.sort(
-    await logparser.process(logx.map((logobj) => logfetcher.fetchLogContent(profile, logobj)))
-  );
-  logemitter.output(parsed, false, logx[0].debug);
-  setTimeout(showlogs, pollingSeconds * 1000, logx);
+  while (match != null) {
+    let filedate = moment.utc(match[3]);
+    if (match[1].substr(-4) === '.log' && filedate.isSame(moment.utc(), 'day')) {
+      fileobjs.push({
+        log: match[1],
+        size_string: match[2],
+        date: moment.utc(match[3]),
+        debug: debug
+      });
+      logger.log(logger.debug, `Available Log: ${match[1]}`, debug);
+    }
+    match = regexp.exec(data);
+  }
+
+  return fileobjs;
+}
+
+let pollLogs = async function(fileobjs: LogFile[], doRollover = false) {
+  if(!doRollover) {
+    if (moment.utc().isAfter(fileobjs[0].date, 'day')) {
+      logger.log(logger.info, 'Logs have rolled over, collecting last entries from old logs.');
+      doRollover = true;
+    } else {
+      logger.log(logger.debug, 'Logs have not rolled over since last poll cycle.', debug);
+      if(nextLogRefresh && moment().isSameOrAfter(nextLogRefresh)) {
+        logger.log(logger.debug, 'Refreshing log list.', debug);
+        let newfiles = await dontInteract();
+        for (let newfile of newfiles) {
+          if(!fileobjs.some(logfile => logfile.log === newfile.log)) {
+            logger.log(logger.debug, `Added new log file: ${newfile.log}.`, debug);
+            fileobjs.push(newfile);
+          }
+        }
+      }
+    }
+
+    if (fluent) {
+      fluent.output(profile.hostname,
+        await logparser.process(fileobjs.map((logobj) => logfetcher.fetchLogContent(profile, logobj))),
+        false, fileobjs[0].debug);
+    } else {
+      let parsed = logemitter.sort(
+        await logparser.process(fileobjs.map((logobj) => logfetcher.fetchLogContent(profile, logobj)))
+      );
+      logemitter.output(parsed, false, fileobjs[0].debug);
+    }
+  } else {
+    if(interactive) {
+      fileobjs = await interact();
+    } else {
+      fileobjs = await dontInteract();
+    }
+
+    if(fileobjs.length != 0) {
+      doRollover = false;
+      for(let i of fileobjs) {
+        i.size = -1;
+      }
+    } else {
+      logger.log(logger.warn, 'No logs to report yet, waiting until next cycle.');
+    }
+  }
+
+  setTimeout(pollLogs, pollingSeconds * 1000, fileobjs, doRollover);
 }
 
 function readDwJson() {
   let dwJsonPath = path.join(process.cwd(), 'dw.json');
-  log(`Loading profile from ${dwJsonPath}\n`);
+  logger.log(logger.info, `Loading profile from ${dwJsonPath}\n`);
   try {
-    const dwJson = JSON.parse(fs.readFileSync(dwJsonPath, 'UTF-8'));
+    const dwJson = JSON.parse(fs.readFileSync(dwJsonPath, 'utf8'));
     const name = dwJson.profile || dwJson.hostname.split('-')[0].split('-')[0];
     profiles[name] = dwJson;
   }
   catch (err) {
-    log(chalk.red(`No log.conf.json or dw.json found in path ${process.cwd()}\n`));
+    logger.log(logger.error, `No dw.json found in path ${process.cwd()}\n`);
     process.exit(-1);
   }
 }
 
-function colorize(logname: string, text: string) {
-  if (s.contains(logname, 'error') || s.contains(logname, 'fatal')) {
-    return chalk.red(text);
-  }
-  if (s.contains(logname, 'warn')) {
-    return chalk.yellow(text);
-  }
-  if (s.contains(logname, 'info')) {
-    return chalk.green(text);
-  }
-  if (s.contains(logname, 'jobs')) {
-    return chalk.blue(text);
-  }
-  return text;
-}
-
-
 function readLogConf() {
   try {
-    profiles = JSON.parse(fs.readFileSync(`${process.cwd()}/log.conf.json`, 'UTF-8'));
-  }
-  catch (err) {
-    // ignore
+    logConfig = JSON.parse(fs.readFileSync(`${process.cwd()}/log.conf.json`, 'utf8'));
+    profiles = logConfig.profiles;
+    if (logConfig.interactive !== undefined && logConfig.interactive === false) {
+      interactive = false;
+      logger.log(logger.info, "Interactive mode is disabled.");
+    }
+    if (logConfig.fluent && logConfig.fluent.enabled) {
+      let fluentConfig: FluentConfig = logConfig.fluent;
+      fluent = new LogFluent(fluentConfig);
+      logger.log(logger.info, "FluentD output is enabled.");
+    } else {
+      logger.log(logger.info, "Console output is enabled.");
+    }
+  } catch (err) {
+    logger.log(logger.error, '\nMissing or invalid log.conf.json.\n');
+    process.exit(-1);
   }
 }
 
