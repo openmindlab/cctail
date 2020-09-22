@@ -116,11 +116,15 @@ const logfetcher = {
     }
   },
 
-  fetchLogList: async function(profile: DwJson, debug?: boolean): Promise<string> {
+  fetchLogList: async function(profile: DwJson, debug?: boolean, logpath = ''): Promise<string> {
     try {
-      logger.log(logger.debug, `Fetching log list from ${profile.hostname}`, debug);
+      if(!logpath || logpath.length === 0) {
+        logger.log(logger.debug, `Fetching log list from ${profile.hostname}`, debug);
+      } else {
+        logger.log(logger.debug, `Fetching log list from ${profile.hostname}, subdirectory ${logpath}`, debug);
+      }
       let headers = new Map([["User-Agent", ua]]);
-      let res = await this.makeRequest(profile, 'GET', '', headers, debug);
+      let res = await this.makeRequest(profile, 'GET', logpath, headers, debug);
       return res.data;
     } catch (err) {
       logger.log(logger.error, 'Fetching log list failed with error: ' + err.message);
@@ -165,13 +169,19 @@ const logfetcher = {
     return size;
   },
 
-  fetchLogContent: async function(profile: DwJson, logobj: LogFile): Promise<[string, string]> {
+  fetchLogContent: async function(profile: DwJson, logobj: LogFile): Promise<[LogFile, string]> {
     try {
       // If logobj.size is negative, leave as-is but range starts at 0. (Log rollover case)
       let range = 0;
-      if (!logobj.size) {
-        let size = await this.fetchFileSize(profile, logobj);
-        range = logobj.size = Math.max(size - initialBytesRead, 0);
+      if (logobj.log.endsWith("log")) {
+        if (!logobj.size) {
+          let size = await this.fetchFileSize(profile, logobj);
+          range = logobj.size = Math.max(size - initialBytesRead, 0);
+        } else if (logobj.size > 0) {
+          range = logobj.size;
+        }
+      } else {
+        logobj.size = -1;
       }
 
       let headers = new Map([["Range", `bytes=${range}-`]]);
@@ -180,14 +190,14 @@ const logfetcher = {
       if (res.status === 206) {
         if(logobj.size < 0) {
           logobj.size = res.data.length;
-          return[logobj.log, res.data];
+          return[logobj, res.data];
         }
         if (logobj.size === 0 && res.data.length > initialBytesRead) {
           logobj.size = res.data.length;
-          return[logobj.log, res.data.substring(res.data.length-initialBytesRead)];
+          return[logobj, res.data.substring(res.data.length-initialBytesRead)];
         }
         logobj.size += res.data.length;
-        return [logobj.log, res.data];
+        return [logobj, res.data];
       }
     } catch (err) {
       if (err.response) {
@@ -202,7 +212,7 @@ const logfetcher = {
         }
       }
     }
-    return ['', ''];
+    return [logobj, ''];
   },
 
   logMissingAuthCredentials: function() {
