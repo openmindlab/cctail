@@ -275,7 +275,7 @@ function readDwJson() {
 function readLogConf() {
   try {
     logConfig = JSON.parse(fs.readFileSync(`${process.cwd()}/log.conf.json`, 'utf8'));
-    profiles = logConfig.profiles;
+    profiles = logConfig.profiles?? logConfig as any; // support for old configs (without "profiles" group)
     if (logConfig.interactive !== undefined && logConfig.interactive === false) {
       interactive = false;
       logger.log(logger.info, "Interactive mode is disabled.");
