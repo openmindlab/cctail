@@ -8,6 +8,7 @@ export interface DwJson {
   password?: string,
   log_types?: string[]
   polling_interval?: number,
+  refresh_loglist_interval?: number,
   token?: string,
   token_type?: string,
   token_expiry?: moment.Moment
@@ -18,8 +19,7 @@ export interface LogFile {
   size_string: string,
   date: moment.Moment,
   size?: number,
-  debug: boolean,
-  rolled_over?: boolean
+  debug: boolean
 }
 
 export interface LogLine {

@@ -22,8 +22,10 @@ let profile: DwJson;
 let debug = false;
 let interactive = true;
 let pollingSeconds = 3;
+let refreshLogListSeconds = 600;
+let nextLogRefresh: moment.Moment;
 
-let run = function () {
+let run = async function () {
   let packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, '../package.json'), 'utf8'));
   logger.log(logger.info, `cctail - v${packageJson.version} - (c) openmind`);
 
@@ -44,64 +46,92 @@ let run = function () {
     debug = true;
   }
 
+  let fileobjs: LogFile[] = [];
   if (interactive) {
-    interact(args._[0]);
+    fileobjs = await interact(args._[0]);
   } else {
-    dontInteract(args._[0]);
-  }
-}
-
-let dontInteract = async function(profilename: string) {
-  if (Object.keys(profiles).length === 1) {
-    profile = profiles[Object.keys(profiles)[0]];
-  } else if (!profilename) {
-    logger.log(logger.error, 'ERROR: No profile selected, exiting.');
-    process.exit(-1);
-  } else if (!profiles[`${profilename}`]) {
-    logger.log(logger.error, `ERROR: Specified profile ${profilename} not found.`);
-    process.exit(-1);
-  } else {
-    profile = profiles[profilename];
+    fileobjs = await dontInteract(args._[0]);
   }
 
-  setPollingInterval(profile);
-  // Which logs to obtain are configured in the profile
-  let fileobjs = await getThatLogList(profile);
+  if(fileobjs.length === 0) {
+    logger.log(logger.error, 'ERROR: No logs selected or returned, exiting.');
+    process.exit(-1);
+  }
+
   setImmediate(pollLogs, fileobjs);
 }
 
-let interact = async function(profilename: string) {
-  if (Object.keys(profiles).length === 1) {
-    profile = profiles[Object.keys(profiles)[0]];
-  }
-  else {
-    if (profilename === undefined) {
-      const profileselection = await prompts({
-        type: 'select',
-        name: 'value',
-        message: 'Select a profile:',
-        choices: Object.keys(profiles).map(i => ({
-          title: `  [${i}] ${profiles[i].hostname}`,
-          value: `${i}`
-        }))
-      });
-      profilename = profileselection.value;
-    }
-
-    if (!profilename) {
+let dontInteract = async function(profilename?: string): Promise<LogFile[]> {
+  if(!profile) {
+    if (Object.keys(profiles).length === 1) {
+      profile = profiles[Object.keys(profiles)[0]];
+    } else if (!profilename) {
       logger.log(logger.error, 'ERROR: No profile selected, exiting.');
       process.exit(-1);
-    }
-
-    if (!profiles[`${profilename}`]) {
+    } else if (!profiles[`${profilename}`]) {
       logger.log(logger.error, `ERROR: Specified profile ${profilename} not found.`);
       process.exit(-1);
+    } else {
+      profile = profiles[profilename];
     }
 
-    profile = profiles[profilename];
+    setPollingInterval(profile);
+    if (profile.refresh_loglist_interval) {
+      refreshLogListSeconds = profile.refresh_loglist_interval;
+      logger.log(logger.info, `Setting log list refresh interval (seconds): ${pollingSeconds}`);
+    } else {
+      logger.log(logger.info, `Using default log list refresh interval (seconds): ${pollingSeconds}`);
+      profile.refresh_loglist_interval = refreshLogListSeconds;
+    }
   }
 
-  setPollingInterval(profile);
+  nextLogRefresh = moment().add(refreshLogListSeconds, 's');
+  let fileobjs = await getThatLogList(profile);
+  if(profile.log_types && profile.log_types.length > 0) {
+    let logx: LogFile[] = [];
+    for (let thisfile of fileobjs) {
+      let logname = thisfile.log.substr(0, thisfile.log.indexOf('-'));
+        if (profile.log_types.indexOf(logname) != -1) {
+          logx.push(thisfile);
+        }
+    }
+  } else {
+    return fileobjs;
+  }
+}
+
+let interact = async function(profilename?: string): Promise<LogFile[]> {
+  if(!profile) {
+    if (Object.keys(profiles).length === 1) {
+      profile = profiles[Object.keys(profiles)[0]];
+    } else {
+      if (profilename === undefined) {
+        const profileselection = await prompts({
+          type: 'select',
+          name: 'value',
+          message: 'Select a profile:',
+          choices: Object.keys(profiles).map(i => ({
+            title: `  [${i}] ${profiles[i].hostname}`,
+            value: `${i}`
+          }))
+        });
+        profilename = profileselection.value;
+      }
+
+      if (!profilename) {
+        logger.log(logger.error, 'ERROR: No profile selected, exiting.');
+        process.exit(-1);
+      }
+
+      if (!profiles[`${profilename}`]) {
+        logger.log(logger.error, `ERROR: Specified profile ${profilename} not found.`);
+        process.exit(-1);
+      }
+
+      profile = profiles[profilename];
+    }
+    setPollingInterval(profile);
+  }
 
   let fileobjs = await getThatLogList(profile);
   fileobjs.sort((a, b) => b.date.unix() - a.date.unix());
@@ -137,19 +167,12 @@ let interact = async function(profilename: string) {
     onState: ((statedata) => { statedata.value.forEach((i: Choice) => i.title = `\n${i.title}`) })
   });
 
-  if (!logselection.value || logselection.value.length === 0) {
-    logger.log(logger.warn, 'No log selected, exiting.');
-    process.exit(-1);
-  }
-
   logselection.value.forEach((i: number) => {
     logx.push(fileobjs[i]);
   });
 
-  console.log('\n');
-
-  setImmediate(pollLogs, logx);
-};
+  return logx;
+}
 
 let setPollingInterval = function(profile: DwJson) {
   if (profile.polling_interval) {
@@ -170,20 +193,15 @@ let getThatLogList = async function(profile: DwJson): Promise<LogFile[]> {
   let match = regexp.exec(data);
 
   while (match != null) {
-    let logShortName = match[1].substr(0, match[1].indexOf('-'));
     let filedate = moment.utc(match[3]);
-    if (match[1].substr(-4) === '.log' && filedate.isSame(moment.utc(), 'day') &&
-      (interactive || !profile.log_types || profile.log_types.indexOf(logShortName) > -1)
-    ) {
+    if (match[1].substr(-4) === '.log' && filedate.isSame(moment.utc(), 'day')) {
       fileobjs.push({
         log: match[1],
         size_string: match[2],
         date: moment.utc(match[3]),
         debug: debug
       });
-      if(debug || !interactive) {
-        logger.log(logger.debug, `Log added to list: ${match[1]}`, debug);
-      }
+      logger.log(logger.debug, `Available Log: ${match[1]}`, debug);
     }
     match = regexp.exec(data);
   }
@@ -191,37 +209,53 @@ let getThatLogList = async function(profile: DwJson): Promise<LogFile[]> {
   return fileobjs;
 }
 
-let pollLogs = async function(fileobjs: LogFile[]) {
-  if (fileobjs.length === 0) {
-    logger.log(logger.warn, 'No logs to show, exiting.');
-    process.exit(-1);
-  }
+let pollLogs = async function(fileobjs: LogFile[], doRollover = false) {
+  if(!doRollover) {
+    if (moment.utc().isAfter(fileobjs[0].date, 'day')) {
+      logger.log(logger.info, 'Logs have rolled over, collecting last entries from old logs.');
+      doRollover = true;
+    } else {
+      logger.log(logger.debug, 'Logs have not rolled over since last poll cycle.', debug);
+      if(nextLogRefresh && moment().isSameOrAfter(nextLogRefresh)) {
+        logger.log(logger.debug, 'Refreshing log list.', debug);
+        let newfiles = await dontInteract();
+        for (let newfile of newfiles) {
+          if(!fileobjs.some(logfile => logfile.log === newfile.log)) {
+            logger.log(logger.debug, `Added new log file: ${newfile.log}.`, debug);
+            fileobjs.push(newfile);
+          }
+        }
+      }
+    }
 
-  // if (debug) {
-  //  logger.log(logger.debug, `Log date: ${fileobjs[0].date.format('ll')}`, debug);
-  //  logger.log(logger.debug, `Today's date: ${moment.utc().format('ll')}`, debug);
-  // }
-  if (!interactive && moment.utc().isAfter(fileobjs[0].date, 'day')) {
-    logger.log(logger.info, 'Logs have rolled over, re-populating log list.')
-    fileobjs = await getThatLogList(profile);
-    for(let i of fileobjs) {
-      i.rolled_over = true;
+    if (fluent) {
+      fluent.output(profile.hostname,
+        await logparser.process(fileobjs.map((logobj) => logfetcher.fetchLogContent(profile, logobj))),
+        false, fileobjs[0].debug);
+    } else {
+      let parsed = logemitter.sort(
+        await logparser.process(fileobjs.map((logobj) => logfetcher.fetchLogContent(profile, logobj)))
+      );
+      logemitter.output(parsed, false, fileobjs[0].debug);
     }
   } else {
-    logger.log(logger.debug, 'Logs have not rolled over since last poll cycle.', debug);
+    if(interactive) {
+      fileobjs = await interact();
+    } else {
+      fileobjs = await dontInteract();
+    }
+
+    if(fileobjs.length != 0) {
+      doRollover = false;
+      for(let i of fileobjs) {
+        i.size = -1;
+      }
+    } else {
+      logger.log(logger.warn, 'No logs to report yet, waiting until next cycle.');
+    }
   }
 
-  if (fluent) {
-    fluent.output(profile.hostname,
-      await logparser.process(fileobjs.map((logobj) => logfetcher.fetchLogContent(profile, logobj))),
-      false, fileobjs[0].debug);
-  } else {
-    let parsed = logemitter.sort(
-      await logparser.process(fileobjs.map((logobj) => logfetcher.fetchLogContent(profile, logobj)))
-    );
-    logemitter.output(parsed, false, fileobjs[0].debug);
-  }
-  setTimeout(pollLogs, pollingSeconds * 1000, fileobjs);
+  setTimeout(pollLogs, pollingSeconds * 1000, fileobjs, doRollover);
 }
 
 function readDwJson() {

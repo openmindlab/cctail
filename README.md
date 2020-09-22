@@ -43,9 +43,12 @@ Requires one of the following configuration files:
 ### Optional Configurations
 
 - `"profiles"`:
-	- `"log_types": ["log", "types", "array"]` _(default: all log types)_ - If in non-interactive mode, defining this will limit the log types that cctail collects to this list.
 		- Standard log types: `analytics`, `api`, `console`, `customdebug`, `customerror`, `customfatal`, `custominfo`, `customwarn`, `dbinit-sql`, `debug`, `deprecation`, `error`, `fatal`, `info`, `jobs`, `migration`, `performance`, `quota`, `sql`, `staging`, `sysevent`, `syslog`, `warn` 
-	- `"polling_interval": nnn` _(default: `3`)_ - Frequency (seconds) with which cctail will poll the logs. You might want this number to be larger if using FluentD (i.e. 30 or 60), since the timestamps are parsed and sent as FluentD timestmaps and thus the data is backfilled at every interval.
+	- `"log_types": ["log", "types", "array"]` _(default: all log types)_ - In non-interactive mode, defining this will limit the log types that cctail collects to this list.
+		- Standard log types: `analytics`, `api`, `console`, `customdebug`, `customerror`, `customfatal`, `custominfo`, `customwarn`, `dbinit-sql`, `debug`, `deprecation`, `error`, `fatal`, `info`, `jobs`, `migration`, `performance`, `quota`, `sql`, `staging`, `sysevent`, `syslog`, `warn`
+	- `"polling_interval": nnn` _(default: `3`)_ - Frequency (seconds) with which cctail will poll the logs.
+	 	- If you are using non-interactive mode to pipe the logs elsewhere (i.e. FluentD), a longer interval is recommended (i.e. 30 or 60).
+	- `"refresh_loglist_interval": nnn` _(default: `600`)_ - In non-interactive mode, this is the frequency (seconds) in which cctail will check the WebDAV server for new logs that match your `log_types` criteria.
 - `"interactive": true|false` _(default: `true`)_ - Interactive mode asks which logs you will want to tail. If `false`, cctail will tail all of today's logs by default.
 
 #### FluentD
@@ -78,7 +81,8 @@ Sample log.conf.json:
       "hostname": "dev01-mysandbox.demandware.net",
       "client_id": "a12345ae-b678-9b01-2dfe-34e56789e0f1",
       "client_secret": "mysupersecretsecret",
-      "polling_interval": 30
+      "polling_interval": 30,
+			"refresh_loglist_interval": 900
     },
     "dev02-bm-example": {
       "hostname": "dev02-mysandbox.demandware.net",

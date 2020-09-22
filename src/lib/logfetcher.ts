@@ -102,10 +102,10 @@ const logfetcher = {
         password: profile.client_secret
       }
     }
-    logger.log(logger.debug, `Authenticating to client API using client id ${profile.client_id}`, debug);
     // logger.log(logger.debug, `Request: ${JSON.stringify(opts)}`, debug);
 
     try {
+      logger.log(logger.debug, `Authenticating to client API using client id ${profile.client_id}`, debug);
       const response = await axios.request(opts);
       profile.token = response.data.token_type.trim() + ' ' + response.data.access_token.trim();
       profile.token_expiry = moment.utc().add(response.data.expires_in, 's').subtract(profile.polling_interval, 's');
@@ -118,29 +118,33 @@ const logfetcher = {
 
   fetchLogList: async function(profile: DwJson, debug?: boolean): Promise<string> {
     try {
-      let headers = new Map([
-        ["User-Agent", ua]
-      ]);
+      logger.log(logger.debug, `Fetching log list from ${profile.hostname}`, debug);
+      let headers = new Map([["User-Agent", ua]]);
       let res = await this.makeRequest(profile, 'GET', '', headers, debug);
       return res.data;
     } catch (err) {
-      if (err.status === 401) {
-        logger.log(logger.warn, 'Authentication successful but access to logs folder has been denied.');
-        logger.log(logger.warn, 'Please add required webdav permissions in BM -> Administration -> Organization -> WebDAV Client Permissions.');
-        logger.log(logger.warn, 'Sample permissions:');
-        logger.log(logger.warn, fs.readFileSync(path.join(__dirname, '../webdav-permissions-sample.json'), 'utf8'));
-        log('\n');
-      } else if (err.status === 500) {
-        logger.log(logger.warn, 'Authentication successful but attempt to retrieve WebDAV logs failed.');
-        logger.log(logger.warn, 'Please ensure your WebDAV permissions are syntactically correct and have no duplicate entries.');
-        logger.log(logger.warn, 'Check in BM -> Administration -> Organization -> WebDAV Client Permissions.');
-        logger.log(logger.warn, 'Sample permissions:');
-        logger.log(logger.warn, fs.readFileSync(path.join(__dirname, '../webdav-permissions-sample.json'), 'utf8'));
-        log('\n');
-      } else {
-        logger.log(logger.error, 'Request failed with error: ' + err.message);
+      logger.log(logger.error, 'Fetching log list failed with error: ' + err.message);
+      switch (err.status) {
+        case 401:
+          logger.log(logger.error, 'Authentication successful but access to logs folder has been denied.');
+          logger.log(logger.error, 'Please add required webdav permissions in BM -> Administration -> Organization -> WebDAV Client Permissions.');
+          logger.log(logger.error, 'Sample permissions:');
+          logger.log(logger.error, fs.readFileSync(path.join(__dirname, '../webdav-permissions-sample.json'), 'utf8'));
+          log('\n');
+          logger.log(logger.error, 'Exiting cctail.');
+          process.exit(1);
+        case 500:
+          logger.log(logger.error, 'Authentication successful but attempt to retrieve WebDAV logs failed.');
+          logger.log(logger.error, 'Please ensure your WebDAV permissions are syntactically correct and have no duplicate entries.');
+          logger.log(logger.error, 'Check in BM -> Administration -> Organization -> WebDAV Client Permissions.');
+          logger.log(logger.error, 'Sample permissions:');
+          logger.log(logger.error, fs.readFileSync(path.join(__dirname, '../webdav-permissions-sample.json'), 'utf8'));
+          log('\n');
+          logger.log(logger.error, 'Exiting cctail.');
+          process.exit(1);
+        default:
+          return '';
       }
-      process.exit(1);
     }
   },
 
@@ -162,22 +166,19 @@ const logfetcher = {
   },
 
   fetchLogContent: async function(profile: DwJson, logobj: LogFile): Promise<[string, string]> {
-    if (!logobj.rolled_over && !logobj.size) {
-      let size = await this.fetchFileSize(profile, logobj);
-      logobj.size = Math.max(size - initialBytesRead, 0);
-    }
-
-    let headers = new Map([
-      ["Range", `bytes=${logobj.size}-`]
-    ]);
-
     try {
-      logger.log(logger.debug, `Fetching log content from ${logobj.log}`, logobj.debug);
+      // If logobj.size is negative, leave as-is but range starts at 0. (Log rollover case)
+      let range = 0;
+      if (!logobj.size) {
+        let size = await this.fetchFileSize(profile, logobj);
+        range = logobj.size = Math.max(size - initialBytesRead, 0);
+      }
+
+      let headers = new Map([["Range", `bytes=${range}-`]]);
       let res = await this.makeRequest(profile, 'GET', logobj.log, headers, logobj.debug);
-      logger.log(logger.debug, `${logobj.log} - status code ${res.status}`, logobj.debug);
+      logger.log(logger.debug, `Fetching contents from ${logobj.log} retured status code ${res.status}`, logobj.debug);
       if (res.status === 206) {
-        if(logobj.rolled_over) {
-          logobj.rolled_over = false;
+        if(logobj.size < 0) {
           logobj.size = res.data.length;
           return[logobj.log, res.data];
         }
@@ -190,11 +191,11 @@ const logfetcher = {
       }
     } catch (err) {
       if (err.response) {
-        logger.log(logger.debug, `${logobj.log} - status code ${err.response.status}`, logobj.debug);
+        logger.log(logger.debug, `Fetching contents from ${logobj.log} returned status code ${err.response.status}`, logobj.debug);
       }
       if (!err.response || err.response.status !== 416) {
         this.errorcount = this.errorcount + 1;
-        logger.log(logger.error, `Error fetching ${logobj.log}: ${err.message} (error count ${this.errorcount})`);
+        logger.log(logger.error, `Error fetching contents from ${logobj.log}: ${err.message} (error count ${this.errorcount})`);
         if (this.isUsingAPI(profile) && this.errorcount > this.errorlimit) {
           logger.log(logger.error, `Error count exceeded ${this.errorlimit}, resetting Client API token.`);
           profile.token = null;
