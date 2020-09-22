@@ -168,7 +168,7 @@ const logfetcher = {
   fetchLogContent: async function(profile: DwJson, logobj: LogFile): Promise<[string, string]> {
     try {
       // If logobj.size is negative, leave as-is but range starts at 0. (Log rollover case)
-      let range = 0;
+      let range = logobj.size;
       if (!logobj.size) {
         let size = await this.fetchFileSize(profile, logobj);
         range = logobj.size = Math.max(size - initialBytesRead, 0);
@@ -176,7 +176,8 @@ const logfetcher = {
 
       let headers = new Map([["Range", `bytes=${range}-`]]);
       let res = await this.makeRequest(profile, 'GET', logobj.log, headers, logobj.debug);
-      logger.log(logger.debug, `Fetching contents from ${logobj.log} retured status code ${res.status}`, logobj.debug);
+      logger.log(logger.debug, `Fetching contents from ${logobj.log} returned status code ${res.status}`, logobj.debug);
+
       if (res.status === 206) {
         if(logobj.size < 0) {
           logobj.size = res.data.length;
