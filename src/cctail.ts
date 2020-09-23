@@ -102,10 +102,12 @@ let dontInteract = async function(profilename?: string): Promise<LogFile[]> {
 
   if(!profile.log_types || profile.log_types.indexOf('codeprofiler') > 0) {
     let cpfileobjs = await getThatLogList(profile, '.csv');
-    let newestcpfile = cpfileobjs.reduce((newest, compare) => newest.date.isAfter(compare.date) ? newest : compare);
-    if(!latestCodeprofilerLogSent || newestcpfile.date.isAfter(latestCodeprofilerLogSent.date)) {
-      logx.push(newestcpfile);
-      latestCodeprofilerLogSent = newestcpfile;
+    if(cpfileobjs && cpfileobjs.length > 0) {
+      let newestcpfile = cpfileobjs.reduce((newest, compare) => newest.date.isAfter(compare.date) ? newest : compare);
+      if(!latestCodeprofilerLogSent || newestcpfile.date.isAfter(latestCodeprofilerLogSent.date)) {
+        logx.push(newestcpfile);
+        latestCodeprofilerLogSent = newestcpfile;
+      }
     }
   }
 
