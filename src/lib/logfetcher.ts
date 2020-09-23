@@ -208,7 +208,6 @@ const logfetcher = {
         logger.log(logger.error, `Error fetching contents from ${logobj.log}: ${err.message} (error count ${this.errorcount})`);
         if (this.isUsingAPI(profile) && this.errorcount > this.errorlimit) {
           logger.log(logger.error, `Error count exceeded ${this.errorlimit}, resetting Client API token.`);
-          logger.log(logger.error, `Error count exceeded ${this.errorlimit}, resetting Client API token.`);
           this.errorcount = 0;
           profile.token = null;
           profile.token_expiry = null;
