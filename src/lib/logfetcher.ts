@@ -92,7 +92,6 @@ const logfetcher = {
     if (!profile.token || !profile.token_expiry || moment.utc().isSameOrAfter(profile.token_expiry)) {
       logger.log(logger.info, `Client API token expired or not set, resetting Client API token.`);
     } else {
-      logger.log(logger.debug, `Client API token is valid.`);
       return;
     }
 
