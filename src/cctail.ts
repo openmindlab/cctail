@@ -231,6 +231,13 @@ let getThatLogList = async function(profile: DwJson, filesuffix = ".log"): Promi
 }
 
 let pollLogs = async function(fileobjs: LogFile[], doRollover = false) {
+  if(logfetcher.isUsingAPI(profile) && logfetcher.errorcount > logfetcher.errorlimit) {
+    logger.log(logger.error, `Error count (${logfetcher.errorcount}) exceeded limit of ${logfetcher.errorlimit}, resetting Client API token.`);
+    logfetcher.errorcount = 0;
+    profile.token = null;
+    await logfetcher.authorize(profile, debug);
+  }
+
   if(!doRollover) {
     if (moment.utc().isAfter(fileobjs[0].date, 'day')) {
       logger.log(logger.info, 'Logs have rolled over, collecting last entries from old logs.');

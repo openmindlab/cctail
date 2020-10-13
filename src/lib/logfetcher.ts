@@ -69,9 +69,7 @@ const logfetcher = {
     if (this.isUsingBM(profile)) {
       opts.headers.Authorization = 'Basic ' + Buffer.from(profile.username + ':' + profile.password).toString('base64');
     } else {
-      if (!profile.token || !profile.token_expiry || moment.utc().isSameOrAfter(profile.token_expiry)) {
-        await this.authorize(profile, debug);
-      }
+      await this.authorize(profile, debug);
       opts.headers.Authorization = profile.token;
     }
 
@@ -89,6 +87,13 @@ const logfetcher = {
     if (!this.isUsingAPI(profile)) {
       this.logMissingAuthCredentials();
       process.exit(1);
+    }
+
+    if (!profile.token || !profile.token_expiry || moment.utc().isSameOrAfter(profile.token_expiry)) {
+      logger.log(logger.info, `Client API token expired or not set, resetting Client API token.`);
+    } else {
+      logger.log(logger.debug, `Client API token is valid.`);
+      return;
     }
 
     let opts: AxiosRequestConfig = {
@@ -206,12 +211,6 @@ const logfetcher = {
       if (!err.response || err.response.status !== 416) {
         this.errorcount = this.errorcount + 1;
         logger.log(logger.error, `Error fetching contents from ${logobj.log}: ${err.message} (error count ${this.errorcount})`);
-        if (this.isUsingAPI(profile) && this.errorcount > this.errorlimit) {
-          logger.log(logger.error, `Error count exceeded ${this.errorlimit}, resetting Client API token.`);
-          this.errorcount = 0;
-          profile.token = null;
-          profile.token_expiry = null;
-        }
       }
     }
     return [logobj, ''];
