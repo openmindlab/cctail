@@ -80,10 +80,10 @@ let dontInteract = async function(profilename?: string): Promise<LogFile[]> {
     setPollingInterval(profile);
     if (profile.refresh_loglist_interval) {
       refreshLogListSeconds = profile.refresh_loglist_interval;
-      logger.log(logger.info, `Setting log list refresh interval (seconds): ${pollingSeconds}`);
+      logger.log(logger.info, `Setting log list refresh interval (seconds): ${refreshLogListSeconds}`);
     } else {
-      logger.log(logger.info, `Using default log list refresh interval (seconds): ${pollingSeconds}`);
       profile.refresh_loglist_interval = refreshLogListSeconds;
+      logger.log(logger.info, `Using default log list refresh interval (seconds): ${refreshLogListSeconds}`);
     }
   }
 
