@@ -74,6 +74,7 @@ let dontInteract = async function(profilename?: string): Promise<LogFile[]> {
       process.exit(-1);
     } else {
       profile = profiles[profilename];
+      logger.log(logger.info `Using profile ${profile}.`);
     }
 
     setPollingInterval(profile);
