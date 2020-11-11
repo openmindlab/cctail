@@ -8,10 +8,10 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/openmindlab/cctail.git"
+    "url": "https://github.com/newrelic-forks/cctail.git"
   },
   "bugs": {
-    "url": "https://github.com/openmindlab/cctail/issues"
+    "url": "https://github.com/newrelic-forks/cctail/issues"
   },
   "main": "dist/cctail.js",
   "license": "MIT",
