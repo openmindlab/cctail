@@ -25,6 +25,7 @@ let pollingSeconds = 3;
 let refreshLogListSeconds = 600;
 let nextLogRefresh: moment.Moment;
 let latestCodeprofilerLogSent: LogFile;
+let envVarPrefix = "ENV_";
 
 let run = async function () {
   let packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, '../package.json'), 'utf8'));
@@ -295,12 +296,28 @@ let pollLogs = async function(fileobjs: LogFile[], doRollover = false) {
   setTimeout(pollLogs, pollingSeconds * 1000, fileobjs, doRollover);
 }
 
+function replaceEnvPlaceholders(data: any) {
+	Object.keys(data).forEach(function(key) {
+		var value = data[key];
+		if (typeof(value) === 'object') {
+			replaceEnvPlaceholders(value);
+		} else if (typeof(value) === 'string' && value.startsWith(envVarPrefix)) {
+      var checkForVar = value.replace(envVarPrefix, "");
+			if (process.env.hasOwnProperty(checkForVar)) {
+				data[key] = process.env[checkForVar];
+			}
+		}
+	});
+	return data;
+}
+
 function readDwJson() {
   let dwJsonPath = path.join(process.cwd(), 'dw.json');
   logger.log(logger.info, `Loading profile from ${dwJsonPath}\n`);
   try {
-    const dwJson = JSON.parse(fs.readFileSync(dwJsonPath, 'utf8'));
-    const name = dwJson.profile || dwJson.hostname.split('-')[0].split('-')[0];
+    var dwJson = replaceEnvPlaceholders(
+      JSON.parse(fs.readFileSync(dwJsonPath, 'utf8')));
+    var name = dwJson.profile || dwJson.hostname.split('-')[0].split('-')[0];
     profiles[name] = dwJson;
   }
   catch (err) {
@@ -325,7 +342,7 @@ function readLogConf() {
       logger.log(logger.info, "Console output is enabled.");
     }
   } catch (err) {
-    logger.log(logger.error, '\nMissing or invalid log.conf.json.\n');
+    logger.log(logger.error, `\nMissing or invalid log.conf.json.\nError message: ${err}\n`);
     process.exit(-1);
   }
 }

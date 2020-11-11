@@ -11,7 +11,7 @@
       "username": "me@company.com",
       "password": "my_really_secret_password",
       "polling_interval": 30
-    },
+    }
   },
   "interactive": true,
   "fluent": {
