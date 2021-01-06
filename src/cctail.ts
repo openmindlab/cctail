@@ -24,6 +24,7 @@ let interactive = true;
 let pollingSeconds = 3;
 let refreshLogListSeconds = 600;
 let nextLogRefresh: moment.Moment;
+let latestCodeprofilerLogSent: LogFile;
 
 let run = async function () {
   let packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, '../package.json'), 'utf8'));
@@ -87,8 +88,8 @@ let dontInteract = async function(profilename?: string): Promise<LogFile[]> {
 
   nextLogRefresh = moment().add(refreshLogListSeconds, 's');
   let fileobjs = await getThatLogList(profile);
+  let logx: LogFile[] = [];
   if(profile.log_types && profile.log_types.length > 0) {
-    let logx: LogFile[] = [];
     for (let thisfile of fileobjs) {
       let logname = thisfile.log.substr(0, thisfile.log.indexOf('-'));
         if (profile.log_types.indexOf(logname) != -1) {
@@ -96,8 +97,21 @@ let dontInteract = async function(profilename?: string): Promise<LogFile[]> {
         }
     }
   } else {
-    return fileobjs;
+    logx = fileobjs;
   }
+
+  if(!profile.log_types || profile.log_types.indexOf('codeprofiler') > 0) {
+    let cpfileobjs = await getThatLogList(profile, '.csv');
+    if(cpfileobjs && cpfileobjs.length > 0) {
+      let newestcpfile = cpfileobjs.reduce((newest, compare) => newest.date.isAfter(compare.date) ? newest : compare);
+      if(!latestCodeprofilerLogSent || newestcpfile.date.isAfter(latestCodeprofilerLogSent.date)) {
+        logx.push(newestcpfile);
+        latestCodeprofilerLogSent = newestcpfile;
+      }
+    }
+  }
+
+  return logx;
 }
 
 let interact = async function(profilename?: string): Promise<LogFile[]> {
@@ -184,17 +198,24 @@ let setPollingInterval = function(profile: DwJson) {
   }
 }
 
-let getThatLogList = async function(profile: DwJson): Promise<LogFile[]> {
+
+let getThatLogList = async function(profile: DwJson, filesuffix = ".log"): Promise<LogFile[]> {
   let fileobjs: LogFile[] = [];
 
-  let data = await logfetcher.fetchLogList(profile, debug);
+  let data = '';
+
+  if(filesuffix === ".csv") {
+    data = await logfetcher.fetchLogList(profile, debug, 'codeprofiler');
+  } else {
+    data = await logfetcher.fetchLogList(profile, debug);
+  }
 
   let regexp = new RegExp(`<a href="/on/demandware.servlet/webdav/Sites/Logs/(.*?)">[\\s\\S\\&\\?]*?<td align="right">(?:<tt>)?(.*?)(?:<\\/tt>)?</td>[\\s\\S\\&\\?]*?<td align="right"><tt>(.*?)</tt></td>`, 'gim');
   let match = regexp.exec(data);
 
   while (match != null) {
     let filedate = moment.utc(match[3]);
-    if (match[1].substr(-4) === '.log' && filedate.isSame(moment.utc(), 'day')) {
+    if (match[1].substr(-4) === filesuffix && filedate.isSame(moment.utc(), 'day')) {
       fileobjs.push({
         log: match[1],
         size_string: match[2],
@@ -210,6 +231,13 @@ let getThatLogList = async function(profile: DwJson): Promise<LogFile[]> {
 }
 
 let pollLogs = async function(fileobjs: LogFile[], doRollover = false) {
+  if(logfetcher.isUsingAPI(profile) && logfetcher.errorcount > logfetcher.errorlimit) {
+    logger.log(logger.error, `Error count (${logfetcher.errorcount}) exceeded limit of ${logfetcher.errorlimit}, resetting Client API token.`);
+    logfetcher.errorcount = 0;
+    profile.token = null;
+    await logfetcher.authorize(profile, debug);
+  }
+
   if(!doRollover) {
     if (moment.utc().isAfter(fileobjs[0].date, 'day')) {
       logger.log(logger.info, 'Logs have rolled over, collecting last entries from old logs.');
@@ -238,6 +266,14 @@ let pollLogs = async function(fileobjs: LogFile[], doRollover = false) {
       );
       logemitter.output(parsed, false, fileobjs[0].debug);
     }
+
+    // Codeprofiler files should only be consumed once
+    let cp = fileobjs.findIndex(logobj => logobj.log.endsWith("csv"));
+    if(cp > -1) {
+      logger.log(logger.debug, `Removed codeprofiler log ${fileobjs[cp].log} from list.`, debug);
+      fileobjs.splice(cp, 1);
+    }
+
   } else {
     if(interactive) {
       fileobjs = await interact();

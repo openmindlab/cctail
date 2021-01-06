@@ -69,9 +69,7 @@ const logfetcher = {
     if (this.isUsingBM(profile)) {
       opts.headers.Authorization = 'Basic ' + Buffer.from(profile.username + ':' + profile.password).toString('base64');
     } else {
-      if (!profile.token_expiry || moment.utc().isSameOrAfter(profile.token_expiry)) {
-        await this.authorize(profile, debug);
-      }
+      await this.authorize(profile, debug);
       opts.headers.Authorization = profile.token;
     }
 
@@ -89,6 +87,12 @@ const logfetcher = {
     if (!this.isUsingAPI(profile)) {
       this.logMissingAuthCredentials();
       process.exit(1);
+    }
+
+    if (!profile.token || !profile.token_expiry || moment.utc().isSameOrAfter(profile.token_expiry)) {
+      logger.log(logger.info, `Client API token expired or not set, resetting Client API token.`);
+    } else {
+      return;
     }
 
     let opts: AxiosRequestConfig = {
@@ -116,11 +120,15 @@ const logfetcher = {
     }
   },
 
-  fetchLogList: async function(profile: DwJson, debug?: boolean): Promise<string> {
+  fetchLogList: async function(profile: DwJson, debug?: boolean, logpath = ''): Promise<string> {
     try {
-      logger.log(logger.debug, `Fetching log list from ${profile.hostname}`, debug);
+      if(!logpath || logpath.length === 0) {
+        logger.log(logger.debug, `Fetching log list from ${profile.hostname}`, debug);
+      } else {
+        logger.log(logger.debug, `Fetching log list from ${profile.hostname}, subdirectory ${logpath}`, debug);
+      }
       let headers = new Map([["User-Agent", ua]]);
-      let res = await this.makeRequest(profile, 'GET', '', headers, debug);
+      let res = await this.makeRequest(profile, 'GET', logpath, headers, debug);
       return res.data;
     } catch (err) {
       logger.log(logger.error, 'Fetching log list failed with error: ' + err.message);
@@ -165,30 +173,35 @@ const logfetcher = {
     return size;
   },
 
-  fetchLogContent: async function(profile: DwJson, logobj: LogFile): Promise<[string, string]> {
+  fetchLogContent: async function(profile: DwJson, logobj: LogFile): Promise<[LogFile, string]> {
     try {
       // If logobj.size is negative, leave as-is but range starts at 0. (Log rollover case)
-      let range = logobj.size;
-      if (!logobj.size) {
-        let size = await this.fetchFileSize(profile, logobj);
-        range = logobj.size = Math.max(size - initialBytesRead, 0);
+      let range = 0;
+      if (logobj.log.endsWith("log")) {
+        if (!logobj.size) {
+          let size = await this.fetchFileSize(profile, logobj);
+          range = logobj.size = Math.max(size - initialBytesRead, 0);
+        } else if (logobj.size > 0) {
+          range = logobj.size;
+        }
+      } else {
+        logobj.size = -1;
       }
 
       let headers = new Map([["Range", `bytes=${range}-`]]);
       let res = await this.makeRequest(profile, 'GET', logobj.log, headers, logobj.debug);
-      logger.log(logger.debug, `Fetching contents from ${logobj.log} returned status code ${res.status}`, logobj.debug);
-
+      logger.log(logger.debug, `Fetching contents from ${logobj.log} retured status code ${res.status}`, logobj.debug);
       if (res.status === 206) {
         if(logobj.size < 0) {
           logobj.size = res.data.length;
-          return[logobj.log, res.data];
+          return[logobj, res.data];
         }
         if (logobj.size === 0 && res.data.length > initialBytesRead) {
           logobj.size = res.data.length;
-          return[logobj.log, res.data.substring(res.data.length-initialBytesRead)];
+          return[logobj, res.data.substring(res.data.length-initialBytesRead)];
         }
         logobj.size += res.data.length;
-        return [logobj.log, res.data];
+        return [logobj, res.data];
       }
     } catch (err) {
       if (err.response) {
@@ -197,13 +210,9 @@ const logfetcher = {
       if (!err.response || err.response.status !== 416) {
         this.errorcount = this.errorcount + 1;
         logger.log(logger.error, `Error fetching contents from ${logobj.log}: ${err.message} (error count ${this.errorcount})`);
-        if (this.isUsingAPI(profile) && this.errorcount > this.errorlimit) {
-          logger.log(logger.error, `Error count exceeded ${this.errorlimit}, resetting Client API token.`);
-          profile.token = null;
-        }
       }
     }
-    return ['', ''];
+    return [logobj, ''];
   },
 
   logMissingAuthCredentials: function() {

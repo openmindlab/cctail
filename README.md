@@ -43,9 +43,9 @@ Requires one of the following configuration files:
 ### Optional Configurations
 
 - `"profiles"`:
-		- Standard log types: `analytics`, `api`, `console`, `customdebug`, `customerror`, `customfatal`, `custominfo`, `customwarn`, `dbinit-sql`, `debug`, `deprecation`, `error`, `fatal`, `info`, `jobs`, `migration`, `performance`, `quota`, `sql`, `staging`, `sysevent`, `syslog`, `warn` 
-	- `"log_types": ["log", "types", "array"]` _(default: all log types)_ - In non-interactive mode, defining this will limit the log types that cctail collects to this list.
 		- Standard log types: `analytics`, `api`, `console`, `customdebug`, `customerror`, `customfatal`, `custominfo`, `customwarn`, `dbinit-sql`, `debug`, `deprecation`, `error`, `fatal`, `info`, `jobs`, `migration`, `performance`, `quota`, `sql`, `staging`, `sysevent`, `syslog`, `warn`
+	- `"log_types": ["log", "types", "array"]` _(default: all log types)_ - In non-interactive mode, defining this will limit the log types that cctail collects to this list.
+		- Standard log types: `analytics`, `api`, `codeprofiler`, `console`, `customdebug`, `customerror`, `customfatal`, `custominfo`, `customwarn`, `dbinit-sql`, `debug`, `deprecation`, `error`, `fatal`, `info`, `jobs`, `migration`, `performance`, `quota`, `sql`, `staging`, `sysevent`, `syslog`, `warn`
 	- `"polling_interval": nnn` _(default: `3`)_ - Frequency (seconds) with which cctail will poll the logs.
 	 	- If you are using non-interactive mode to pipe the logs elsewhere (i.e. FluentD), a longer interval is recommended (i.e. 30 or 60).
 	- `"refresh_loglist_interval": nnn` _(default: `600`)_ - In non-interactive mode, this is the frequency (seconds) in which cctail will check the WebDAV server for new logs that match your `log_types` criteria.

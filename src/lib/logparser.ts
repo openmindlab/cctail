@@ -1,10 +1,16 @@
 import moment from 'moment';
-import { LogLine } from './types';
+import { LogFile, LogLine } from './types';
+import logger from './logger'
 
 const logparser = {
-  process: async function (files: Promise<[string, string]>[]): Promise<LogLine[]> {
+  process: async function (files: Promise<[LogFile, string]>[]): Promise<LogLine[]> {
     return Promise.all(files).then((values) => {
-      return values.map((data) => this.parseLog(data)).reduce((a, b) => {
+      return values.map((data) => {
+        if(data[0].log.endsWith(".csv"))
+          return this.parseCsv(data);
+        else
+          return this.parseLog(data);
+      }).reduce((a, b) => {
         if (a.length === 0)
           return b;
         return a.concat(b);
@@ -12,8 +18,32 @@ const logparser = {
     });
   },
 
-  parseLog: function (logdata: [string, string]): LogLine[] {
-    let logfile = logdata[0];
+  parseCsv: function (logdata: [LogFile, string]): LogLine[] {
+    let logfile = logdata[0].log.replace("/", "-");
+    let timestamp = logdata[0].date;
+    let data = logdata[1];
+    let linesobj: LogLine[] = [];
+    let regexp = new RegExp((/([^\n]+)/g));
+    let mmatch;
+
+    while (mmatch = regexp.exec(data)) {
+      let start = mmatch.index;
+      let end = start + mmatch[0].length;
+      // Start > 0 guarantees we skip the first line, which is the CSV header.
+      if (start > 0 && end > 0) {
+        linesobj.push({
+          message: data.substring(start, end),
+          timestamp: timestamp,
+          level: logger.profile,
+          logfile: logfile
+        });
+      }
+    }
+    return linesobj;
+  },
+
+  parseLog: function (logdata: [LogFile, string]): LogLine[] {
+    let logfile = logdata[0].log;
     let data = logdata[1];
     let linesobj: LogLine[] = [];
     let regexp = new RegExp((/\[([.0-9 .:-]*) GMT\] (DEBUG|INFO|WARN|ERROR|FATAL)? ?(.*)/g));

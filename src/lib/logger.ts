@@ -10,6 +10,7 @@ const logger = {
   fatal: 'fatal',
   info: 'info',
   jobs: 'jobs',
+  profile: 'PROFILE',
   warn: 'warn',
 
   colormap: {
@@ -23,6 +24,8 @@ const logger = {
     info: chalk.green,
     JOBS: chalk.blueBright,
     jobs: chalk.blue,
+    PROFILE: chalk.magentaBright,
+    profile: chalk.magenta,
     WARN: chalk.yellowBright,
     warn: chalk.yellow
   },
@@ -60,6 +63,9 @@ const logger = {
           break;
         case this.checkFor(level, "debug"):
           color = this.colormap["debug"];
+          break;
+        case this.checkFor(level, "profile"):
+          color = this.colormap["profile"];
           break;
         default:
           break;
