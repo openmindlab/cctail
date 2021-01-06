@@ -90,7 +90,7 @@ const logfetcher = {
     }
 
     if (!profile.token || !profile.token_expiry || moment.utc().isSameOrAfter(profile.token_expiry)) {
-      logger.log(logger.info, `Client API token expired or not set, resetting Client API token.`);
+      logger.log(logger.debug, `Client API token expired or not set, resetting Client API token.`);
     } else {
       return;
     }
@@ -209,7 +209,12 @@ const logfetcher = {
       }
       if (!err.response || err.response.status !== 416) {
         this.errorcount = this.errorcount + 1;
-        logger.log(logger.error, `Error fetching contents from ${logobj.log}: ${err.message} (error count ${this.errorcount})`);
+        if (this.errorcount > 1) {
+          logger.log(logger.error, `Error fetching contents from ${logobj.log}: ${err.message} (error count ${this.errorcount})`);
+        } else {
+          // don't be too verbose, just retry if this was the first error
+          logger.log(logger.debug, `Error fetching contents from ${logobj.log}: ${err.message} (error count ${this.errorcount})`);
+        }
       }
     }
     return [logobj, ''];
