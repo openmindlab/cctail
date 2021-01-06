@@ -1,5 +1,9 @@
 ## Change Log
 
+### v1.5.0 (2021/01/06)
+
+- Improved stability, re-authentication is more reliable now.
+
 ### v1.4.0 (2020/09/18)
 
 - Support for FluentD as a log collector
