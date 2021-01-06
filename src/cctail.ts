@@ -49,9 +49,9 @@ let run = async function () {
 
   let fileobjs: LogFile[] = [];
   if (interactive) {
-    fileobjs = await interact(args._[0]);
+    fileobjs = await interact(args._[0] as string);
   } else {
-    fileobjs = await dontInteract(args._[0]);
+    fileobjs = await dontInteract(args._[0] as string);
   }
 
   if(fileobjs.length === 0) {
