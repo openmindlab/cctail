@@ -315,9 +315,8 @@ function readDwJson() {
   let dwJsonPath = path.join(process.cwd(), 'dw.json');
   logger.log(logger.info, `Loading profile from ${dwJsonPath}\n`);
   try {
-    var dwJson = replaceEnvPlaceholders(
-      JSON.parse(fs.readFileSync(dwJsonPath, 'utf8')));
-    var name = dwJson.profile || dwJson.hostname.split('-')[0].split('-')[0];
+    const dwJson = replaceEnvPlaceholders(JSON.parse(fs.readFileSync(dwJsonPath, 'utf8')));
+    const name = dwJson.profile || dwJson.hostname.split('-')[0].split('-')[0];
     profiles[name] = dwJson;
   }
   catch (err) {
@@ -328,7 +327,7 @@ function readDwJson() {
 
 function readLogConf() {
   try {
-    logConfig = JSON.parse(fs.readFileSync(`${process.cwd()}/log.conf.json`, 'utf8'));
+    logConfig = replaceEnvPlaceholders(JSON.parse(fs.readFileSync(`${process.cwd()}/log.conf.json`, 'utf8')));
     profiles = logConfig.profiles?? logConfig as any; // support for old configs (without "profiles" group)
     if (logConfig.interactive !== undefined && logConfig.interactive === false) {
       interactive = false;

@@ -1,5 +1,9 @@
 ## Change Log
 
+### v1.5.1 (2021/01/08)
+
+- Support for environment variables for use in profiles.
+
 ### v1.5.0 (2021/01/06)
 
 - Improved stability, re-authentication is more reliable now.

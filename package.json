@@ -1,6 +1,6 @@
 {
   "name": "cctail",
-  "version": "1.5.0",
+  "version": "1.5.1",
   "description": "Salesforce Commerce Cloud logs remote tail",
   "keywords": [
     "Salesforce Commerce Cloud",
@@ -8,10 +8,10 @@
   ],
   "repository": {
     "type": "git",
-    "url": "https://github.com/newrelic-forks/cctail.git"
+    "url": "https://github.com/openmindlab/cctail.git"
   },
   "bugs": {
-    "url": "https://github.com/newrelic-forks/cctail/issues"
+    "url": "https://github.com/openmindlab/cctail/issues"
   },
   "main": "dist/cctail.js",
   "license": "MIT",
