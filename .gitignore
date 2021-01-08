@@ -3,6 +3,6 @@
 node_modules
 log.conf.js
 log.conf.json
-package.lock
+package-lock.json
 dist/*
 sandbox.txt
