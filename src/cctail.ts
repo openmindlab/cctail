@@ -183,9 +183,11 @@ let interact = async function(profilename?: string): Promise<LogFile[]> {
     onState: ((statedata) => { statedata.value.forEach((i: Choice) => i.title = `\n${i.title}`) })
   });
 
-  logselection.value.forEach((i: number) => {
-    logx.push(fileobjs[i]);
-  });
+  if (logselection.value) { // ctrl+c
+    logselection.value.forEach((i: number) => {
+      logx.push(fileobjs[i]);
+    });
+  }
 
   return logx;
 }
