@@ -1,12 +1,12 @@
 import moment from 'moment';
+import logger from './logger';
 import { LogFile, LogLine } from './types';
-import logger from './logger'
 
 const logparser = {
   process: async function (files: Promise<[LogFile, string]>[]): Promise<LogLine[]> {
     return Promise.all(files).then((values) => {
       return values.map((data) => {
-        if(data[0].log.endsWith(".csv"))
+        if (data[0].log.endsWith(".csv"))
           return this.parseCsv(data);
         else
           return this.parseLog(data);

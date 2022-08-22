@@ -1,5 +1,9 @@
 ## Change Log
 
+### v1.6.0 (2022/08/22)
+
+- upgrade dependencies - switch to node 16 by default
+
 ### v1.5.1 (2021/01/08)
 
 - Support for environment variables for use in profiles.

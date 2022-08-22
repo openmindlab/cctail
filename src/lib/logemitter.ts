@@ -1,7 +1,7 @@
-import s from 'underscore.string';
 import moment from 'moment';
-import { LogLine } from './types';
+import s from 'underscore.string';
 import logger from './logger';
+import { LogLine } from './types';
 
 const logemitter = {
 

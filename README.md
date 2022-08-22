@@ -2,13 +2,6 @@
 
 > Remote tail Salesforce Commerce Cloud logs via webdav. Allow to monitor more logs at once, merging the content of all the files in a single stream. Reports either to console or a FluentD collector.
 
-<div>
-	<br>
-	<a href="https://openmindonline.it" target="_blank"><img width="200" src="openmind.svg" alt="openmind"></a>
-	<br>
-	<br>
-</div>
-
 ## Features
 
 - Authentication using API Client _(recommended)_ OR Business Manager _(deprecated)_
@@ -136,7 +129,5 @@ Run `cctail` in a folder containing either a log.conf-json or dw.json config fil
 The tool will display the list of available logs in order to let you interactively select the ones you want to monitor.
 
 ## License
-
-Copyright (c) 2019 openmind
 
 Released under the MIT license.

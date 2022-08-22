@@ -1,19 +1,19 @@
 #!/usr/bin/env node
 
-import path from 'path';
-import prompts, { Choice } from 'prompts';
-import chalk from 'chalk';
+import { green, yellow } from 'colorette';
 import fs from 'fs';
 import moment from 'moment';
-import yargs from 'yargs';
+import path from 'path';
+import prompts, { Choice } from 'prompts';
 import s from 'underscore.string';
+import yargs from 'yargs';
 
-import logfetcher from './lib/logfetcher';
-import logparser from './lib/logparser';
 import logemitter from './lib/logemitter';
-import logger from './lib/logger'
+import logfetcher from './lib/logfetcher';
 import LogFluent from './lib/logfluent';
-import { LogConfig, LogFile, DwJson, Profiles, FluentConfig } from './lib/types';
+import logger from './lib/logger';
+import logparser from './lib/logparser';
+import { DwJson, FluentConfig, LogConfig, LogFile, Profiles } from './lib/types';
 
 let fluent: LogFluent;
 let logConfig: LogConfig;
@@ -29,7 +29,7 @@ let envVarPrefix = "ENV_";
 
 let run = async function () {
   let packageJson = JSON.parse(fs.readFileSync(path.join(__dirname, '../package.json'), 'utf8'));
-  logger.log(logger.info, `cctail - v${packageJson.version} - (c) openmind`);
+  logger.log(logger.info, `cctail - v${packageJson.version}`);
 
   readLogConf();
 
@@ -42,9 +42,9 @@ let run = async function () {
     "parse-numbers": false
   });
 
-  const args = yargs.argv
+  const args: any = yargs.argv
 
-  if (args.d) {
+  if (args['d']) {
     debug = true;
   }
 
@@ -55,7 +55,7 @@ let run = async function () {
     fileobjs = await dontInteract(args._[0] as string);
   }
 
-  if(fileobjs.length === 0) {
+  if (fileobjs.length === 0) {
     logger.log(logger.error, 'ERROR: No logs selected or returned, exiting.');
     process.exit(-1);
   }
@@ -63,8 +63,8 @@ let run = async function () {
   setImmediate(pollLogs, fileobjs);
 }
 
-let dontInteract = async function(profilename?: string): Promise<LogFile[]> {
-  if(!profile) {
+let dontInteract = async function (profilename?: string): Promise<LogFile[]> {
+  if (!profile) {
     if (Object.keys(profiles).length === 1) {
       profile = profiles[Object.keys(profiles)[0]];
     } else if (!profilename) {
@@ -91,22 +91,22 @@ let dontInteract = async function(profilename?: string): Promise<LogFile[]> {
   nextLogRefresh = moment().add(refreshLogListSeconds, 's');
   let fileobjs = await getThatLogList(profile);
   let logx: LogFile[] = [];
-  if(profile.log_types && profile.log_types.length > 0) {
+  if (profile.log_types && profile.log_types.length > 0) {
     for (let thisfile of fileobjs) {
       let logname = thisfile.log.substr(0, thisfile.log.indexOf('-'));
-        if (profile.log_types.indexOf(logname) != -1) {
-          logx.push(thisfile);
-        }
+      if (profile.log_types.indexOf(logname) != -1) {
+        logx.push(thisfile);
+      }
     }
   } else {
     logx = fileobjs;
   }
 
-  if(!profile.log_types || profile.log_types.indexOf('codeprofiler') > 0) {
+  if (!profile.log_types || profile.log_types.indexOf('codeprofiler') > 0) {
     let cpfileobjs = await getThatLogList(profile, '.csv');
-    if(cpfileobjs && cpfileobjs.length > 0) {
+    if (cpfileobjs && cpfileobjs.length > 0) {
       let newestcpfile = cpfileobjs.reduce((newest, compare) => newest.date.isAfter(compare.date) ? newest : compare);
-      if(!latestCodeprofilerLogSent || newestcpfile.date.isAfter(latestCodeprofilerLogSent.date)) {
+      if (!latestCodeprofilerLogSent || newestcpfile.date.isAfter(latestCodeprofilerLogSent.date)) {
         logx.push(newestcpfile);
         latestCodeprofilerLogSent = newestcpfile;
       }
@@ -116,8 +116,8 @@ let dontInteract = async function(profilename?: string): Promise<LogFile[]> {
   return logx;
 }
 
-let interact = async function(profilename?: string): Promise<LogFile[]> {
-  if(!profile) {
+let interact = async function (profilename?: string): Promise<LogFile[]> {
+  if (!profile) {
     if (Object.keys(profiles).length === 1) {
       profile = profiles[Object.keys(profiles)[0]];
     } else {
@@ -158,18 +158,18 @@ let interact = async function(profilename?: string): Promise<LogFile[]> {
   for (let i in fileobjs) {
     let sizeformatted = s.lpad(fileobjs[i].size_string, 12);
     if (sizeformatted.trim() !== '0.0 kb') {
-      sizeformatted = chalk.yellow(sizeformatted);
+      sizeformatted = yellow(sizeformatted);
     }
     let dateformatted = s.lpad(fileobjs[i].date.format('YYYY-MM-DD HH:mm:ss'), 20);
     if (fileobjs[i].date.isSame(moment.utc(), 'hour')) {
-      dateformatted = chalk.yellow(dateformatted);
+      dateformatted = yellow(dateformatted);
     }
     let logname = s.rpad(fileobjs[i].log, 70);
 
     logname = logger.colorize(logname, logname);
 
     logchoiche.push({
-      title: `${chalk.green(s.lpad(i, 2))} ${logname} ${sizeformatted}  ${dateformatted}`,
+      title: `${green(s.lpad(i, 2))} ${logname} ${sizeformatted}  ${dateformatted}`,
       value: i
     });
   }
@@ -177,10 +177,10 @@ let interact = async function(profilename?: string): Promise<LogFile[]> {
   let logselection = await prompts({
     type: 'autocompleteMultiselect',
     name: 'value',
-    message: `Select logs on [${chalk.green(profile.hostname)}]`,
+    message: `Select logs on [${green(profile.hostname)}]`,
     choices: logchoiche,
     // eslint-disable-next-line no-return-assign
-    onState: ((statedata) => { statedata.value ? statedata.value.forEach((i: Choice) => i.title = `\n${i.title}`): 'no selection' })
+    onState: ((statedata) => { statedata.value ? statedata.value.forEach((i: Choice) => i.title = `\n${i.title}`) : 'no selection' })
   });
 
   if (logselection.value) { // ctrl+c
@@ -192,7 +192,7 @@ let interact = async function(profilename?: string): Promise<LogFile[]> {
   return logx;
 }
 
-let setPollingInterval = function(profile: DwJson) {
+let setPollingInterval = function (profile: DwJson) {
   if (profile.polling_interval) {
     pollingSeconds = profile.polling_interval;
     logger.log(logger.info, `Setting polling interval (seconds): ${pollingSeconds}`);
@@ -203,12 +203,12 @@ let setPollingInterval = function(profile: DwJson) {
 }
 
 
-let getThatLogList = async function(profile: DwJson, filesuffix = ".log"): Promise<LogFile[]> {
+let getThatLogList = async function (profile: DwJson, filesuffix = ".log"): Promise<LogFile[]> {
   let fileobjs: LogFile[] = [];
 
   let data = '';
 
-  if(filesuffix === ".csv") {
+  if (filesuffix === ".csv") {
     data = await logfetcher.fetchLogList(profile, debug, 'codeprofiler');
   } else {
     data = await logfetcher.fetchLogList(profile, debug);
@@ -234,25 +234,25 @@ let getThatLogList = async function(profile: DwJson, filesuffix = ".log"): Promi
   return fileobjs;
 }
 
-let pollLogs = async function(fileobjs: LogFile[], doRollover = false) {
-  if(logfetcher.isUsingAPI(profile) && logfetcher.errorcount > logfetcher.errorlimit) {
+let pollLogs = async function (fileobjs: LogFile[], doRollover = false) {
+  if (logfetcher.isUsingAPI(profile) && logfetcher.errorcount > logfetcher.errorlimit) {
     logger.log(logger.error, `Error count (${logfetcher.errorcount}) exceeded limit of ${logfetcher.errorlimit}, resetting Client API token.`);
     logfetcher.errorcount = 0;
     profile.token = null;
     await logfetcher.authorize(profile, debug);
   }
 
-  if(!doRollover) {
+  if (!doRollover) {
     if (moment.utc().isAfter(fileobjs[0].date, 'day')) {
       logger.log(logger.info, 'Logs have rolled over, collecting last entries from old logs.');
       doRollover = true;
     } else {
       logger.log(logger.debug, 'Logs have not rolled over since last poll cycle.', debug);
-      if(nextLogRefresh && moment().isSameOrAfter(nextLogRefresh)) {
+      if (nextLogRefresh && moment().isSameOrAfter(nextLogRefresh)) {
         logger.log(logger.debug, 'Refreshing log list.', debug);
         let newfiles = await dontInteract();
         for (let newfile of newfiles) {
-          if(!fileobjs.some(logfile => logfile.log === newfile.log)) {
+          if (!fileobjs.some(logfile => logfile.log === newfile.log)) {
             logger.log(logger.debug, `Added new log file: ${newfile.log}.`, debug);
             fileobjs.push(newfile);
           }
@@ -273,21 +273,21 @@ let pollLogs = async function(fileobjs: LogFile[], doRollover = false) {
 
     // Codeprofiler files should only be consumed once
     let cp = fileobjs.findIndex(logobj => logobj.log.endsWith("csv"));
-    if(cp > -1) {
+    if (cp > -1) {
       logger.log(logger.debug, `Removed codeprofiler log ${fileobjs[cp].log} from list.`, debug);
       fileobjs.splice(cp, 1);
     }
 
   } else {
-    if(interactive) {
+    if (interactive) {
       fileobjs = await interact();
     } else {
       fileobjs = await dontInteract();
     }
 
-    if(fileobjs.length != 0) {
+    if (fileobjs.length != 0) {
       doRollover = false;
-      for(let i of fileobjs) {
+      for (let i of fileobjs) {
         i.size = -1;
       }
     } else {
@@ -299,18 +299,18 @@ let pollLogs = async function(fileobjs: LogFile[], doRollover = false) {
 }
 
 function replaceEnvPlaceholders(data: any) {
-	Object.keys(data).forEach(function(key) {
-		var value = data[key];
-		if (typeof(value) === 'object') {
-			replaceEnvPlaceholders(value);
-		} else if (typeof(value) === 'string' && value.startsWith(envVarPrefix)) {
+  Object.keys(data).forEach(function (key) {
+    var value = data[key];
+    if (typeof (value) === 'object') {
+      replaceEnvPlaceholders(value);
+    } else if (typeof (value) === 'string' && value.startsWith(envVarPrefix)) {
       var checkForVar = value.replace(envVarPrefix, "");
-			if (process.env.hasOwnProperty(checkForVar)) {
-				data[key] = process.env[checkForVar];
-			}
-		}
-	});
-	return data;
+      if (process.env.hasOwnProperty(checkForVar)) {
+        data[key] = process.env[checkForVar];
+      }
+    }
+  });
+  return data;
 }
 
 function readDwJson() {
@@ -330,7 +330,7 @@ function readDwJson() {
 function readLogConf() {
   try {
     logConfig = replaceEnvPlaceholders(JSON.parse(fs.readFileSync(`${process.cwd()}/log.conf.json`, 'utf8')));
-    profiles = logConfig.profiles?? logConfig as any; // support for old configs (without "profiles" group)
+    profiles = logConfig.profiles ?? logConfig as any; // support for old configs (without "profiles" group)
     if (logConfig.interactive !== undefined && logConfig.interactive === false) {
       interactive = false;
       logger.log(logger.info, "Interactive mode is disabled.");

@@ -1,10 +1,10 @@
-import Axios, { Method, AxiosResponse, AxiosRequestConfig } from 'axios';
-import chalk from 'chalk';
+import Axios, { AxiosRequestConfig, AxiosResponse, Method } from 'axios';
+import { cyan } from 'colorette';
 import fs from 'fs';
-import path from 'path';
-import { DwJson, LogFile } from './types';
-import logger from './logger'
 import moment from 'moment';
+import path from 'path';
+import logger from './logger';
+import { DwJson, LogFile } from './types';
 
 const { log } = console;
 
@@ -21,7 +21,7 @@ const axios = Axios.create();
 
 // Thank you @matthewsuan! https://gist.github.com/matthewsuan/2bdc9e7f459d5b073d58d1ebc0613169
 // Axios Request Interceptor
-axios.interceptors.request.use(function(config) {
+axios.interceptors.request.use(function (config) {
   return new Promise((resolve, reject) => {
     let interval = setInterval(() => {
       if (requestsPending < requestsMaxCount) {
@@ -34,10 +34,10 @@ axios.interceptors.request.use(function(config) {
 })
 
 // Axios Response Interceptor
-axios.interceptors.response.use(function(response) {
+axios.interceptors.response.use(function (response) {
   requestsPending = Math.max(0, requestsPending - 1);
   return Promise.resolve(response);
-}, function(error) {
+}, function (error) {
   requestsPending = Math.max(0, requestsPending - 1);
   return Promise.reject(error);
 })
@@ -47,7 +47,7 @@ const logfetcher = {
   errorcount: 0,
   errorlimit: 5,
 
-  makeRequest: async function(profile: DwJson, methodStr: string, url_suffix: string, headers: Map<string, string>, debug?: boolean): Promise<AxiosResponse> {
+  makeRequest: async function (profile: DwJson, methodStr: string, url_suffix: string, headers: Map<string, string>, debug?: boolean): Promise<AxiosResponse> {
     if (!this.isUsingBM(profile) && !this.isUsingAPI(profile)) {
       this.logMissingAuthCredentials();
       process.exit(1);
@@ -83,7 +83,7 @@ const logfetcher = {
     return axios.request(opts);
   },
 
-  authorize: async function(profile: DwJson, debug?: boolean): Promise<void> {
+  authorize: async function (profile: DwJson, debug?: boolean): Promise<void> {
     if (!this.isUsingAPI(profile)) {
       this.logMissingAuthCredentials();
       process.exit(1);
@@ -120,9 +120,9 @@ const logfetcher = {
     }
   },
 
-  fetchLogList: async function(profile: DwJson, debug?: boolean, logpath = ''): Promise<string> {
+  fetchLogList: async function (profile: DwJson, debug?: boolean, logpath = ''): Promise<string> {
     try {
-      if(!logpath || logpath.length === 0) {
+      if (!logpath || logpath.length === 0) {
         logger.log(logger.debug, `Fetching log list from ${profile.hostname}`, debug);
       } else {
         logger.log(logger.debug, `Fetching log list from ${profile.hostname}, subdirectory ${logpath}`, debug);
@@ -156,10 +156,10 @@ const logfetcher = {
     }
   },
 
-  fetchFileSize: async function(profile: DwJson, logobj: LogFile): Promise<number> {
+  fetchFileSize: async function (profile: DwJson, logobj: LogFile): Promise<number> {
     let size = 0;
     try {
-      logger.log(logger.debug, chalk.cyan(`Fetching size for ${logobj.log}`), logobj.debug);
+      logger.log(logger.debug, cyan(`Fetching size for ${logobj.log}`), logobj.debug);
       let res = await this.makeRequest(profile, 'HEAD', logobj.log, null, logobj.debug);
       if (res.headers['content-length']) {
         size = parseInt(res.headers['content-length'], 10);
@@ -173,7 +173,7 @@ const logfetcher = {
     return size;
   },
 
-  fetchLogContent: async function(profile: DwJson, logobj: LogFile): Promise<[LogFile, string]> {
+  fetchLogContent: async function (profile: DwJson, logobj: LogFile): Promise<[LogFile, string]> {
     try {
       // If logobj.size is negative, leave as-is but range starts at 0. (Log rollover case)
       let range = 0;
@@ -192,13 +192,13 @@ const logfetcher = {
       let res = await this.makeRequest(profile, 'GET', logobj.log, headers, logobj.debug);
       logger.log(logger.debug, `Fetching contents from ${logobj.log} retured status code ${res.status}`, logobj.debug);
       if (res.status === 206) {
-        if(logobj.size < 0) {
+        if (logobj.size < 0) {
           logobj.size = res.data.length;
-          return[logobj, res.data];
+          return [logobj, res.data];
         }
         if (logobj.size === 0 && res.data.length > initialBytesRead) {
           logobj.size = res.data.length;
-          return[logobj, res.data.substring(res.data.length-initialBytesRead)];
+          return [logobj, res.data.substring(res.data.length - initialBytesRead)];
         }
         logobj.size += res.data.length;
         return [logobj, res.data];
@@ -220,18 +220,18 @@ const logfetcher = {
     return [logobj, ''];
   },
 
-  logMissingAuthCredentials: function() {
+  logMissingAuthCredentials: function () {
     logger.log(logger.error, ('Missing authentication credentials. Please add client_id/client_secret or username/password to log.conf.json or dw.json.'));
     logger.log(logger.error, (`Sample config:\n`));
     logger.log(logger.error, (fs.readFileSync(path.join(__dirname, '../log.config-sample.json'), 'utf8')));
     log('\n');
   },
 
-  isUsingAPI: function(profile: DwJson) {
+  isUsingAPI: function (profile: DwJson) {
     return (profile.client_id && profile.client_secret)
   },
 
-  isUsingBM: function(profile: DwJson) {
+  isUsingBM: function (profile: DwJson) {
     return (profile.username && profile.password)
   }
 }

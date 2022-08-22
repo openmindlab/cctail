@@ -1,4 +1,4 @@
-import chalk from 'chalk';
+import { blue, blueBright, cyan, cyanBright, green, greenBright, magenta, magentaBright, red, redBright, yellow, yellowBright } from 'colorette';
 const { log } = console;
 
 const logger = {
@@ -14,24 +14,24 @@ const logger = {
   warn: 'warn',
 
   colormap: {
-    DEBUG: chalk.cyanBright,
-    debug: chalk.cyan,
-    ERROR: chalk.redBright,
-    error: chalk.red,
-    FATAL: chalk.redBright,
-    fatal: chalk.red,
-    INFO: chalk.greenBright,
-    info: chalk.green,
-    JOBS: chalk.blueBright,
-    jobs: chalk.blue,
-    PROFILE: chalk.magentaBright,
-    profile: chalk.magenta,
-    WARN: chalk.yellowBright,
-    warn: chalk.yellow
+    DEBUG: cyanBright,
+    debug: cyan,
+    ERROR: redBright,
+    error: red,
+    FATAL: redBright,
+    fatal: red,
+    INFO: greenBright,
+    info: green,
+    JOBS: blueBright,
+    jobs: blue,
+    PROFILE: magentaBright,
+    profile: magenta,
+    WARN: yellowBright,
+    warn: yellow
   },
 
   log: function (level: string, text: string, debug?: boolean) {
-    if(level !== this.debug) {
+    if (level !== this.debug) {
       log(this.colorize(level, text));
     } else if (debug) {
       log(this.colorize(level, this.debugPrefix + text));
@@ -39,12 +39,12 @@ const logger = {
   },
 
   colorize: function (level: string, text: string) {
-    if(!level || level.length === 0) {
+    if (!level || level.length === 0) {
       return text;
     }
 
     let color = this.colormap[level];
-    if(!color) {
+    if (!color) {
       switch (true) {
         case this.checkFor(level, "info"):
           color = this.colormap["info"];
@@ -72,7 +72,7 @@ const logger = {
       }
     }
 
-    if(color) {
+    if (color) {
       return color(text);
     } else {
       return text;

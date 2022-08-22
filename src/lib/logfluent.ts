@@ -1,5 +1,5 @@
-import { LogLine, FluentConfig } from './types';
 import logger from './logger';
+import { FluentConfig, LogLine } from './types';
 const fluent = require('fluent-logger');
 
 class LogFluent implements FluentConfig {
