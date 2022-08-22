@@ -180,7 +180,7 @@ let interact = async function(profilename?: string): Promise<LogFile[]> {
     message: `Select logs on [${chalk.green(profile.hostname)}]`,
     choices: logchoiche,
     // eslint-disable-next-line no-return-assign
-    onState: ((statedata) => { statedata.value.forEach((i: Choice) => i.title = `\n${i.title}`) })
+    onState: ((statedata) => { statedata.value ? statedata.value.forEach((i: Choice) => i.title = `\n${i.title}`): 'no selection' })
   });
 
   if (logselection.value) { // ctrl+c
